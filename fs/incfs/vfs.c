@@ -70,7 +70,7 @@ static void evict_inode(struct inode *inode);
 
 static int incfs_setattr(struct dentry *dentry, struct iattr *ia);
 static ssize_t incfs_getxattr(struct dentry *d, const char *name,
-			void *value, size_t size);
+			void *value, size_t size, int flags);
 static ssize_t incfs_setxattr(struct dentry *d, const char *name,
 			const void *value, size_t size, int flags);
 static ssize_t incfs_listxattr(struct dentry *d, char *list, size_t size);
@@ -167,9 +167,9 @@ static const struct inode_operations incfs_file_inode_ops = {
 
 static int incfs_handler_getxattr(const struct xattr_handler *xh,
 				  struct dentry *d, struct inode *inode,
-				  const char *name, void *buffer, size_t size)
+				  const char *name, void *buffer, size_t size, int flags)
 {
-	return incfs_getxattr(d, name, buffer, size);
+	return incfs_getxattr(d, name, buffer, size, flags);
 }
 
 static int incfs_handler_setxattr(const struct xattr_handler *xh,
@@ -604,8 +604,11 @@ static ssize_t log_read(struct file *f, char __user *buf, size_t len,
 
 	reads_to_collect = min_t(ssize_t, rl_size, reads_to_collect);
 	while (reads_to_collect > 0) {
-		struct read_log_state next_state = READ_ONCE(log_state->state);
-		int reads_collected = incfs_collect_logged_reads(
+		struct read_log_state next_state;
+		int reads_collected;
+
+		memcpy(&next_state, &log_state->state, sizeof(next_state));
+		reads_collected = incfs_collect_logged_reads(
 			mi, &next_state, reads_buf,
 			min_t(ssize_t, reads_to_collect, reads_per_page));
 		if (reads_collected <= 0) {
@@ -624,7 +627,7 @@ static ssize_t log_read(struct file *f, char __user *buf, size_t len,
 			goto out;
 		}
 
-		WRITE_ONCE(log_state->state, next_state);
+		memcpy(&log_state->state, &next_state, sizeof(next_state));
 		total_reads_collected += reads_collected;
 		buf += reads_collected * sizeof(*reads_buf);
 		reads_to_collect -= reads_collected;
@@ -897,14 +900,14 @@ static int init_new_file(struct mount_info *mi, struct dentry *dentry,
 		.dentry = dentry
 	};
 	new_file = dentry_open(&path, O_RDWR | O_NOATIME | O_LARGEFILE,
-			       mi->mi_owner);
+			       current_cred());
 
 	if (IS_ERR(new_file)) {
 		error = PTR_ERR(new_file);
 		goto out;
 	}
 
-	bfc = incfs_alloc_bfc(new_file);
+	bfc = incfs_alloc_bfc(mi, new_file);
 	fput(new_file);
 	if (IS_ERR(bfc)) {
 		error = PTR_ERR(bfc);
@@ -1025,7 +1028,7 @@ static int dir_relative_path_resolve(
 	if (dir_fd < 0)
 		return dir_fd;
 
-	dir_f = dentry_open(base_path, O_RDONLY | O_NOATIME, mi->mi_owner);
+	dir_f = dentry_open(base_path, O_RDONLY | O_NOATIME, current_cred());
 
 	if (IS_ERR(dir_f)) {
 		error = PTR_ERR(dir_f);
@@ -1903,10 +1906,13 @@ static int file_open(struct inode *inode, struct file *file)
 	struct file *backing_file = NULL;
 	struct path backing_path = {};
 	int err = 0;
+	const struct cred *old_cred;
 
 	get_incfs_backing_path(file->f_path.dentry, &backing_path);
-	backing_file = dentry_open(
-		&backing_path, O_RDWR | O_NOATIME | O_LARGEFILE, mi->mi_owner);
+	old_cred = override_creds(mi->mi_owner);
+	backing_file = dentry_open(&backing_path,
+			O_RDWR | O_NOATIME | O_LARGEFILE, current_cred());
+	revert_creds(old_cred);
 	path_put(&backing_path);
 
 	if (IS_ERR(backing_file)) {
@@ -2076,7 +2082,7 @@ static int incfs_setattr(struct dentry *dentry, struct iattr *ia)
 }
 
 static ssize_t incfs_getxattr(struct dentry *d, const char *name,
-			void *value, size_t size)
+			void *value, size_t size, int flags)
 {
 	struct dentry_info *di = get_incfs_dentry(d);
 	struct mount_info *mi = get_mount_info(d->d_sb);

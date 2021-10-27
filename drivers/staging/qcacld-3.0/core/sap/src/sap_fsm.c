@@ -725,6 +725,26 @@ uint32_t sap_select_default_oper_chan(struct mac_context *mac_ctx,
 	return default_freq;
 }
 
+static bool is_mcc_preferred(struct sap_context *sap_context,
+			     uint32_t con_ch_freq)
+{
+	/*
+	 * If SAP ACS channel list is 1-11 and STA is on non-preferred
+	 * channel i.e. 12, 13, 14 then MCC is unavoidable. This is because
+	 * if SAP is started on 12,13,14 some clients may not be able to
+	 * join dependending on their regulatory country.
+	 */
+	if ((con_ch_freq >= 2467) && (con_ch_freq <= 2484) &&
+	    (sap_context->acs_cfg->start_ch_freq >= 2412 &&
+	     sap_context->acs_cfg->end_ch_freq <= 2462)) {
+		sap_debug("conc ch freq %d & sap acs ch list is 1-11, prefer mcc",
+			  con_ch_freq);
+		return true;
+	}
+
+	return false;
+}
+
 QDF_STATUS
 sap_validate_chan(struct sap_context *sap_context,
 		  bool pre_start_bss,
@@ -809,6 +829,9 @@ sap_validate_chan(struct sap_context *sap_context,
 			    (!wlan_reg_is_dfs_for_freq(
 					mac_ctx->pdev, con_ch_freq) ||
 			    sta_sap_scc_on_dfs_chan)) {
+				if (is_mcc_preferred(sap_context, con_ch_freq))
+					goto validation_done;
+
 				QDF_TRACE(QDF_MODULE_ID_SAP,
 					QDF_TRACE_LEVEL_DEBUG,
 					"%s: Override ch freq %d to %d due to CC Intf",
@@ -1463,7 +1486,7 @@ QDF_STATUS sap_signal_hdd_event(struct sap_context *sap_ctx,
 			return QDF_STATUS_E_INVAL;
 		}
 
-		bss_complete->status = (eSapStatus)(long)context;
+		bss_complete->status = (eSapStatus) context;
 		bss_complete->staId = sap_ctx->sap_sta_id;
 
 		QDF_TRACE(QDF_MODULE_ID_SAP, QDF_TRACE_LEVEL_INFO_HIGH,
@@ -1482,16 +1505,16 @@ QDF_STATUS sap_signal_hdd_event(struct sap_context *sap_ctx,
 	case eSAP_DFS_NO_AVAILABLE_CHANNEL:
 		sap_ap_event.sapHddEventCode = sap_hddevent;
 		sap_ap_event.sapevt.sapStopBssCompleteEvent.status =
-			(eSapStatus)(long)context;
+			(eSapStatus) context;
 		break;
 	case eSAP_ACS_SCAN_SUCCESS_EVENT:
 		sap_handle_acs_scan_event(sap_ctx, &sap_ap_event,
-			(eSapStatus)(long)context);
+			(eSapStatus)context);
 		break;
 	case eSAP_ACS_CHANNEL_SELECTED:
 		sap_ap_event.sapHddEventCode = sap_hddevent;
 		acs_selected = &sap_ap_event.sapevt.sap_ch_selected;
-		if (eSAP_STATUS_SUCCESS == (eSapStatus)(long)context) {
+		if (eSAP_STATUS_SUCCESS == (eSapStatus)context) {
 			acs_selected->pri_ch_freq =
 						sap_ctx->acs_cfg->pri_ch_freq;
 			acs_selected->ht_sec_ch_freq =
@@ -1501,7 +1524,7 @@ QDF_STATUS sap_signal_hdd_event(struct sap_context *sap_ctx,
 				sap_ctx->acs_cfg->vht_seg0_center_ch_freq;
 			acs_selected->vht_seg1_center_ch_freq =
 				sap_ctx->acs_cfg->vht_seg1_center_ch_freq;
-		} else if (eSAP_STATUS_FAILURE == (eSapStatus)(long)context) {
+		} else if (eSAP_STATUS_FAILURE == (eSapStatus)context) {
 			acs_selected->pri_ch_freq = 0;
 		}
 		break;
@@ -1509,7 +1532,7 @@ QDF_STATUS sap_signal_hdd_event(struct sap_context *sap_ctx,
 	case eSAP_STOP_BSS_EVENT:
 		sap_ap_event.sapHddEventCode = eSAP_STOP_BSS_EVENT;
 		sap_ap_event.sapevt.sapStopBssCompleteEvent.status =
-			(eSapStatus)(long)context;
+			(eSapStatus) context;
 		break;
 
 	case eSAP_STA_ASSOC_EVENT:
@@ -1583,7 +1606,7 @@ QDF_STATUS sap_signal_hdd_event(struct sap_context *sap_ctx,
 		chaninfo->rate_flags = csr_roaminfo->chan_info.rate_flags;
 
 		reassoc_complete->wmmEnabled = csr_roaminfo->wmmEnabledSta;
-		reassoc_complete->status = (eSapStatus)(long)context;
+		reassoc_complete->status = (eSapStatus) context;
 		reassoc_complete->timingMeasCap = csr_roaminfo->timingMeasCap;
 		reassoc_complete->ampdu = csr_roaminfo->ampdu;
 		reassoc_complete->sgi_enable = csr_roaminfo->sgi_enable;
@@ -1627,7 +1650,7 @@ QDF_STATUS sap_signal_hdd_event(struct sap_context *sap_ctx,
 			disassoc_comp->reason = eSAP_MAC_INITATED_DISASSOC;
 
 		disassoc_comp->status_code = csr_roaminfo->status_code;
-		disassoc_comp->status = (eSapStatus)(long)context;
+		disassoc_comp->status = (eSapStatus) context;
 		disassoc_comp->rssi = csr_roaminfo->rssi;
 		disassoc_comp->rx_rate = csr_roaminfo->rx_rate;
 		disassoc_comp->tx_rate = csr_roaminfo->tx_rate;
@@ -1646,7 +1669,7 @@ QDF_STATUS sap_signal_hdd_event(struct sap_context *sap_ctx,
 		sap_ap_event.sapHddEventCode = eSAP_STA_SET_KEY_EVENT;
 		key_complete =
 			&sap_ap_event.sapevt.sapStationSetKeyCompleteEvent;
-		key_complete->status = (eSapStatus)(long)context;
+		key_complete->status = (eSapStatus) context;
 		qdf_copy_macaddr(&key_complete->peerMacAddr,
 				 &csr_roaminfo->peerMac);
 		break;
@@ -1696,13 +1719,13 @@ QDF_STATUS sap_signal_hdd_event(struct sap_context *sap_ctx,
 	case eSAP_DISCONNECT_ALL_P2P_CLIENT:
 		sap_ap_event.sapHddEventCode = eSAP_DISCONNECT_ALL_P2P_CLIENT;
 		sap_ap_event.sapevt.sapActionCnf.actionSendSuccess =
-			(eSapStatus)(long)context;
+			(eSapStatus) context;
 		break;
 
 	case eSAP_MAC_TRIG_STOP_BSS_EVENT:
 		sap_ap_event.sapHddEventCode = eSAP_MAC_TRIG_STOP_BSS_EVENT;
 		sap_ap_event.sapevt.sapActionCnf.actionSendSuccess =
-			(eSapStatus)(long)context;
+			(eSapStatus) context;
 		break;
 
 	case eSAP_UNKNOWN_STA_JOIN:
@@ -3367,6 +3390,8 @@ static QDF_STATUS sap_get_freq_list(struct sap_context *sap_ctx,
 	struct acs_weight_range *range_list;
 	bool freq_present_in_list = false;
 	uint8_t i;
+	bool srd_chan_enabled;
+	enum QDF_OPMODE vdev_opmode;
 
 	mac_ctx = sap_get_mac_context();
 	if (!mac_ctx) {
@@ -3485,15 +3510,19 @@ static QDF_STATUS sap_get_freq_list(struct sap_context *sap_ctx,
 				mac_ctx->mlme_cfg->acs.np_chan_weightage);
 			freq_present_in_list = true;
 		}
-		/* Dont scan ETSI13 SRD channels if the ETSI13 SRD channels
-		 * are not enabled in master mode
-		 */
-		if (!wlan_reg_is_etsi13_srd_chan_allowed_master_mode(mac_ctx->
-								     pdev) &&
-		    wlan_reg_is_etsi13_srd_chan_for_freq(
-					mac_ctx->pdev,
-					WLAN_REG_CH_TO_FREQ(loop_count)))
+
+		vdev_opmode = wlan_vdev_mlme_get_opmode(sap_ctx->vdev);
+		wlan_mlme_get_srd_master_mode_for_vdev(mac_ctx->psoc,
+						       vdev_opmode,
+						       &srd_chan_enabled);
+
+		if (!srd_chan_enabled &&
+		    wlan_reg_is_etsi13_srd_chan_for_freq(mac_ctx->pdev,
+					WLAN_REG_CH_TO_FREQ(loop_count))) {
+			sap_debug("vdev opmode %d not allowed on SRD freq %d",
+				  vdev_opmode, WLAN_REG_CH_TO_FREQ(loop_count));
 			continue;
+		}
 
 		/* Check if the freq is present in range list */
 		for (i = 0; i < mac_ctx->mlme_cfg->acs.num_weight_range; i++) {

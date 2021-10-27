@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/clk.h>
@@ -555,6 +555,7 @@ static struct snd_soc_codec_conf *msm_codec_conf;
 static struct snd_soc_card snd_soc_card_bengal_msm;
 static int dmic_0_1_gpio_cnt;
 static int dmic_2_3_gpio_cnt;
+static u32 wcd_datalane_mismatch;
 
 static void *def_wcd_mbhc_cal(void);
 static void *def_rouleur_mbhc_cal(void);
@@ -571,15 +572,9 @@ static struct wcd_mbhc_config wcd_mbhc_cfg = {
 	.swap_gnd_mic = NULL,
 	.hs_ext_micbias = true,
 	.key_code[0] = KEY_MEDIA,
-#if defined(CONFIG_MACH_XIAOMI_LIME) || defined(CONFIG_MACH_POCO_CITRUS)
 	.key_code[1] = BTN_1,
 	.key_code[2] = BTN_2,
 	.key_code[3] = 0,
-#else
-	.key_code[1] = KEY_VOICECOMMAND,
-	.key_code[2] = KEY_VOLUMEUP,
-	.key_code[3] = KEY_VOLUMEDOWN,
-#endif
 	.key_code[4] = 0,
 	.key_code[5] = 0,
 	.key_code[6] = 0,
@@ -2884,7 +2879,7 @@ static int msm_bt_sample_rate_tx_put(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
-#if defined(CONFIG_MACH_XIAOMI_LIME) || defined(CONFIG_MACH_POCO_CITRUS)
+
 //add for awinic pa 87359
 extern unsigned char aw87359_audio_dspk(void);
 extern unsigned char aw87359_audio_abrcv(void);
@@ -2985,7 +2980,6 @@ static const struct soc_enum msm_snd_enum[] = {
 	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(ext_bottom_speaker_amp_function),
 				ext_bottom_speaker_amp_function),
 };
-#endif
 
 static const struct snd_kcontrol_new msm_int_snd_controls[] = {
 	SOC_ENUM_EXT("RX_CDC_DMA_RX_0 Channels", rx_cdc_dma_rx_0_chs,
@@ -3020,7 +3014,6 @@ static const struct snd_kcontrol_new msm_int_snd_controls[] = {
 			cdc_dma_rx_format_get, cdc_dma_rx_format_put),
 	SOC_ENUM_EXT("RX_CDC_DMA_RX_5 Format", rx_cdc_dma_rx_5_format,
 			cdc_dma_rx_format_get, cdc_dma_rx_format_put),
-#if defined(CONFIG_MACH_XIAOMI_LIME) || defined(CONFIG_MACH_POCO_CITRUS)
 //add for Awinic pa 87359 & 87519
 	SOC_ENUM_EXT("Ext_TOP_Speaker_Amp", msm_snd_enum[0],
 			ext_top_speaker_amp_get, ext_top_speaker_amp_put),
@@ -3028,7 +3021,6 @@ static const struct snd_kcontrol_new msm_int_snd_controls[] = {
 			ext_receiver_amp_get, ext_receiver_amp_put),
 	SOC_ENUM_EXT("Ext_BOTTOM_Speaker_Amp", msm_snd_enum[2],
 			ext_bottom_speaker_amp_get, ext_bottom_speaker_amp_put),
-#endif
 	SOC_ENUM_EXT("TX_CDC_DMA_TX_0 Format", tx_cdc_dma_tx_0_format,
 			cdc_dma_tx_format_get, cdc_dma_tx_format_put),
 	SOC_ENUM_EXT("TX_CDC_DMA_TX_3 Format", tx_cdc_dma_tx_3_format,
@@ -4430,6 +4422,14 @@ static int msm_int_audrx_init(struct snd_soc_pcm_runtime *rtd)
 	snd_soc_dapm_ignore_suspend(dapm, "Analog Mic2");
 	snd_soc_dapm_ignore_suspend(dapm, "Analog Mic3");
 	snd_soc_dapm_ignore_suspend(dapm, "Analog Mic4");
+//dong 0715 add
+	/*
+	snd_soc_dapm_ignore_suspend(dapm, "WSA_SPK1 OUT");
+	snd_soc_dapm_ignore_suspend(dapm, "WSA_SPK2 OUT");
+	snd_soc_dapm_ignore_suspend(dapm, "WSA AIF VI");
+	snd_soc_dapm_ignore_suspend(dapm, "VIINPUT_WSA");
+	*/
+//dong 0715 add end
 
 	snd_soc_dapm_sync(dapm);
 
@@ -4448,7 +4448,11 @@ static int msm_int_audrx_init(struct snd_soc_pcm_runtime *rtd)
 				data = (char*) of_device_get_match_data(
 								&pdev->dev);
 			if (data != NULL) {
-				if (!strncmp(data, "wcd937x",
+				if (wcd_datalane_mismatch) {
+					bolero_set_port_map(component,
+						ARRAY_SIZE(sm_port_map_khaje),
+						sm_port_map_khaje);
+				} else if (!strncmp(data, "wcd937x",
 						sizeof("wcd937x"))) {
 					bolero_set_port_map(component,
 						ARRAY_SIZE(sm_port_map),
@@ -4503,13 +4507,8 @@ static void *def_wcd_mbhc_cal(void)
 		(sizeof(btn_cfg->_v_btn_low[0]) * btn_cfg->num_btn);
 
 	btn_high[0] = 75;
-#if defined(CONFIG_MACH_XIAOMI_LIME) || defined(CONFIG_MACH_POCO_CITRUS)
 	btn_high[1] = 225;
 	btn_high[2] = 450;
-#else
-	btn_high[1] = 150;
-	btn_high[2] = 237;
-#endif
 	btn_high[3] = 500;
 	btn_high[4] = 500;
 	btn_high[5] = 500;
@@ -6857,6 +6856,10 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 	ret = msm_init_aux_dev(pdev, card);
 	if (ret)
 		goto err;
+
+	ret = of_property_read_u32(pdev->dev.of_node,
+			"qcom,wcd-datalane-mismatch",
+			&wcd_datalane_mismatch);
 
 	ret = devm_snd_soc_register_card(&pdev->dev, card);
 	if (ret == -EPROBE_DEFER) {

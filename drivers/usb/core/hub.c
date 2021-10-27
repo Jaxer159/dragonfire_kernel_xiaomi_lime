@@ -45,7 +45,7 @@
 #define USB_TP_TRANSMISSION_DELAY	40	/* ns */
 #define USB_TP_TRANSMISSION_DELAY_MAX	65535	/* ns */
 
-int deny_new_usb __read_mostly = 0;
+extern int deny_new_usb;
 
 /* Protect struct usb_device->state and ->children members
  * Note: Both are also protected by ->dev.sem, except that ->state can
@@ -4997,7 +4997,6 @@ static void hub_port_connect(struct usb_hub *hub, int port1, u16 portstatus,
 			goto done;
 		return;
 	}
-
 	if (deny_new_usb) {
 		dev_err(&port_dev->dev, "denied insert of USB device on port %d\n", port1);
 		goto done;

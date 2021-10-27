@@ -100,6 +100,10 @@ static struct elevator_type *elevator_find(const char *name, bool mq)
 {
 	struct elevator_type *e;
 
+	/* Forbid init from changing I/O scheduler from default */
+	if (!strncmp(current->comm, "init", sizeof("init")))
+		return NULL;
+
 	list_for_each_entry(e, &elv_list, list) {
 		if (elevator_match(e, name) && (mq == e->uses_mq))
 			return e;
@@ -560,15 +564,22 @@ void elv_bio_merged(struct request_queue *q, struct request *rq,
 #ifdef CONFIG_PM
 static void blk_pm_requeue_request(struct request *rq)
 {
-	if (rq->q->dev && !(rq->rq_flags & RQF_PM))
+	if (rq->q->dev && !(rq->rq_flags & RQF_PM) &&
+	    (rq->rq_flags & (RQF_PM_ADDED | RQF_FLUSH_SEQ))) {
+		rq->rq_flags &= ~RQF_PM_ADDED;
 		rq->q->nr_pending--;
+	}
 }
 
 static void blk_pm_add_request(struct request_queue *q, struct request *rq)
 {
-	if (q->dev && !(rq->rq_flags & RQF_PM) && q->nr_pending++ == 0 &&
-	    (q->rpm_status == RPM_SUSPENDED || q->rpm_status == RPM_SUSPENDING))
-		pm_request_resume(q->dev);
+	if (q->dev && !(rq->rq_flags & RQF_PM)) {
+		rq->rq_flags |= RQF_PM_ADDED;
+		if (q->nr_pending++ == 0 &&
+		    (q->rpm_status == RPM_SUSPENDED ||
+		     q->rpm_status == RPM_SUSPENDING))
+			pm_request_resume(q->dev);
+	}
 }
 #else
 static inline void blk_pm_requeue_request(struct request *rq) {}

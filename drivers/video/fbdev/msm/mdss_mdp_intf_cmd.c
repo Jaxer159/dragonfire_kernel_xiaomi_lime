@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-only
-/* Copyright (c) 2013-2018, 2020-2021, The Linux Foundation. All rights reserved. */
+/* Copyright (c) 2013-2018, 2020, The Linux Foundation. All rights reserved. */
 
 #include <linux/kernel.h>
 #include <linux/pm_runtime.h>
@@ -13,7 +13,7 @@
 #include "mdss_dsi_clk.h"
 #include <linux/interrupt.h>
 
-#define MAX_RECOVERY_TRIALS 10
+#define MAX_RECOVERY_TRIALS 3
 #define MAX_SESSIONS 2
 
 #define SPLIT_MIXER_OFFSET 0x800
@@ -1322,19 +1322,14 @@ static int mdss_mdp_cmd_intf_recovery(void *data, int event)
 		return -EINVAL;
 
 	/*
-	 * Currently, intf_fifo_overflow is not
+	 * Currently, only intf_fifo_underflow is
 	 * supported for recovery sequence for command
 	 * mode DSI interface
 	 */
-	if (event == MDP_INTF_DSI_VIDEO_FIFO_OVERFLOW) {
+	if (event != MDP_INTF_DSI_CMD_FIFO_UNDERFLOW) {
 		pr_warn("%s: unsupported recovery event:%d\n",
 					__func__, event);
 		return -EPERM;
-	}
-
-	if (event == MDP_INTF_DSI_PANEL_DEAD) {
-		mdss_fb_report_panel_dead(ctx->ctl->mfd);
-		return 0;
 	}
 
 	if (atomic_read(&ctx->koff_cnt)) {

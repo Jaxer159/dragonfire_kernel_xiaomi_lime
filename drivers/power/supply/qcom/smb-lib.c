@@ -212,7 +212,7 @@ enum {
 	MAX_TYPES
 };
 
-static const struct apsd_result const smblib_apsd_results[] = {
+static const struct apsd_result smblib_apsd_results[] = {
 	[UNKNOWN] = {
 		.name	= "UNKNOWN",
 		.bit	= 0,
@@ -951,6 +951,13 @@ int smblib_set_icl_current(struct smb_charger *chg, int icl_ua)
 	if (icl_ua == INT_MAX)
 		goto override_suspend_config;
 
+#ifdef CONFIG_FORCE_FAST_CHARGE
+	if (force_fast_charge > 0 &&
+			chg->real_charger_type == POWER_SUPPLY_TYPE_USB &&
+			icl_ua == USBIN_500MA)
+		icl_ua = USBIN_900MA;
+#endif
+
 	/* configure current */
 	if (chg->typec_mode == POWER_SUPPLY_TYPEC_SOURCE_DEFAULT
 		&& (chg->real_charger_type == POWER_SUPPLY_TYPE_USB)) {
@@ -1187,44 +1194,6 @@ static int __smblib_set_prop_typec_power_role(struct smb_charger *chg,
 	return rc;
 }
 
-static inline bool typec_in_src_mode(struct smb_charger *chg)
-{
-	return (chg->typec_mode > POWER_SUPPLY_TYPEC_NONE &&
-		chg->typec_mode < POWER_SUPPLY_TYPEC_SOURCE_DEFAULT);
-}
-
-int smblib_get_prop_typec_select_rp(struct smb_charger *chg,
-				    union power_supply_propval *val)
-{
-	int rc, rp;
-	u8 stat;
-
-	if (!typec_in_src_mode(chg))
-		return -ENODATA;
-
-	rc = smblib_read(chg, TYPE_C_CFG_2_REG, &stat);
-	if (rc < 0) {
-		smblib_err(chg, "Couldn't read TYPE_C_CURRSRC_CFG_REG rc=%d\n",
-				rc);
-		return rc;
-	}
-
-	switch (stat & EN_80UA_180UA_CUR_SOURCE_BIT) {
-	case TYPEC_SRC_RP_STD:
-		rp = POWER_SUPPLY_TYPEC_SRC_RP_STD;
-		break;
-	case TYPEC_SRC_RP_1P5A:
-		rp = POWER_SUPPLY_TYPEC_SRC_RP_1P5A;
-		break;
-	default:
-		return -EINVAL;
-	}
-
-	val->intval = rp;
-
-	return 0;
-}
-
 /*********************
  * VOTABLE CALLBACKS *
  *********************/
@@ -1292,7 +1261,7 @@ static int smblib_awake_vote_callback(struct votable *votable, void *data,
 	struct smb_charger *chg = data;
 
 	if (awake)
-		pm_stay_awake(chg->dev);
+		pm_wakeup_event(chg->dev, 500);
 	else
 		pm_relax(chg->dev);
 
@@ -2833,6 +2802,16 @@ static int smblib_handle_usb_current(struct smb_charger *chg,
 {
 	int rc = 0, rp_ua, typec_mode;
 
+#ifdef CONFIG_FORCE_FAST_CHARGE
+	if (force_fast_charge > 0 &&
+			chg->real_charger_type == POWER_SUPPLY_TYPE_USB) {
+		if (usb_current > 0 && usb_current < USBIN_500MA)
+			usb_current = USBIN_500MA;
+		else if (usb_current >= USBIN_500MA)
+			usb_current = USBIN_900MA;
+	}
+#endif
+
 	if (chg->real_charger_type == POWER_SUPPLY_TYPE_USB_FLOAT) {
 		if (usb_current == -ETIMEDOUT) {
 			/*
@@ -2917,42 +2896,6 @@ int smblib_set_prop_typec_power_role(struct smb_charger *chg,
 		return __smblib_set_prop_typec_power_role(chg, val);
 
 	return 0;
-}
-
-int smblib_set_prop_typec_select_rp(struct smb_charger *chg,
-				    const union power_supply_propval *val)
-{
-	int rc = 0;
-
-	if (!typec_in_src_mode(chg)) {
-		smblib_err(chg, "Couldn't set curr src: not in SRC mode\n");
-		return -EINVAL;
-	}
-
-	if (val->intval < 0 || val->intval >= TYPEC_SRC_RP_MAX_ELEMENTS)
-		return -EINVAL;
-
-	switch (val->intval) {
-	case TYPEC_SRC_RP_STD:
-		rc = smblib_masked_write(chg, TYPE_C_CFG_2_REG,
-			EN_80UA_180UA_CUR_SOURCE_BIT,
-			TYPEC_SRC_RP_STD);
-		break;
-	case TYPEC_SRC_RP_1P5A:
-	case TYPEC_SRC_RP_3A:
-	case TYPEC_SRC_RP_3A_DUPLICATE:
-		rc = smblib_masked_write(chg, TYPE_C_CFG_2_REG,
-			EN_80UA_180UA_CUR_SOURCE_BIT,
-			TYPEC_SRC_RP_1P5A);
-		break;
-	default:
-		return -EINVAL;
-	}
-
-	if (rc < 0)
-		smblib_err(chg, "Couldn't write to TYPE_C_CURRSRC_CFG rc=%d\n",
-				rc);
-	return rc;
 }
 
 int smblib_set_prop_pd_voltage_min(struct smb_charger *chg,

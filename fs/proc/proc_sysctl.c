@@ -13,6 +13,7 @@
 #include <linux/namei.h>
 #include <linux/mm.h>
 #include <linux/module.h>
+
 #include <linux/bpf-cgroup.h>
 #include <linux/mount.h>
 #include "internal.h"
@@ -1707,38 +1708,6 @@ int __init proc_sys_init(void)
 	return sysctl_init();
 }
 
-struct sysctl_alias {
-	const char *kernel_param;
-	const char *sysctl_param;
-};
-
-/*
- * Historically some settings had both sysctl and a command line parameter.
- * With the generic sysctl. parameter support, we can handle them at a single
- * place and only keep the historical name for compatibility. This is not meant
- * to add brand new aliases. When adding existing aliases, consider whether
- * the possibly different moment of changing the value (e.g. from early_param
- * to the moment do_sysctl_args() is called) is an issue for the specific
- * parameter.
- */
-static const struct sysctl_alias sysctl_aliases[] = {
-	{"numa_zonelist_order",		"vm.numa_zonelist_order" },
-	{"hung_task_panic",		"kernel.hung_task_panic" },
-	{ }
-};
-
-static const char *sysctl_find_alias(char *param)
-{
-	const struct sysctl_alias *alias;
-
-	for (alias = &sysctl_aliases[0]; alias->kernel_param != NULL; alias++) {
-		if (strcmp(alias->kernel_param, param) == 0)
-			return alias->sysctl_param;
-	}
-
-	return NULL;
-}
-
 /* Set sysctl value passed on kernel command line. */
 static int process_sysctl_arg(char *param, char *val,
 			       const char *unused, void *arg)
@@ -1752,18 +1721,15 @@ static int process_sysctl_arg(char *param, char *val,
 	loff_t pos = 0;
 	ssize_t wret;
 
-	if (strncmp(param, "sysctl", sizeof("sysctl") - 1) == 0) {
-		param += sizeof("sysctl") - 1;
+	if (strncmp(param, "sysctl", sizeof("sysctl") - 1))
+		return 0;
 
-		if (param[0] != '/' && param[0] != '.')
-			return 0;
+	param += sizeof("sysctl") - 1;
 
-		param++;
-	} else {
-		param = (char *) sysctl_find_alias(param);
-		if (!param)
-			return 0;
-	}
+	if (param[0] != '/' && param[0] != '.')
+		return 0;
+
+	param++;
 
 	/*
 	 * To set sysctl options, we use a temporary mount of proc, look up the

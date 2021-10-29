@@ -430,13 +430,6 @@
 			size = <0 0x800000>;
 		};
 
-		dump_mem: mem_dump_region {
-			compatible = "shared-dma-pool";
-			alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
-			reusable;
-			size = <0 0x800000>;
-		};
-
 		/* global autoconfigured region for contiguous allocations */
 		linux,cma {
 			compatible = "shared-dma-pool";
@@ -449,7 +442,7 @@
 	};
 
 	chosen {
-		bootargs = "rcupdate.rcu_expedited=1 rcupdate.rcu_normal_after_boot=1 rcu_nocbs=0-3 kpti=off nosoftlockup mce=ignore_ce noirqdebug quiet";
+		bootargs = "rcu_nocbs=0-7 kpti=off noirqdebug quiet cgroup_disable=pressure";
 	};
 
 	soc: soc { };
@@ -1156,7 +1149,7 @@
 
 	mem_dump {
 		compatible = "qcom,mem-dump";
-		memory-region = <&dump_mem>;
+		status = "disabled";
 
 		c0_context {
 			qcom,dump-size = <0x800>;
@@ -1728,6 +1721,7 @@
 			<1305600>,
 			<1420800>,
 			<1612800>,
+			<1804800>,
 			<1804800>;
 
 		qcom,cpufreq-table-1 =
@@ -1739,6 +1733,7 @@
 			<1536000>,
 			<1612800>,
 			<1804800>,
+			<2016000>,
 			<2016000>;
 	};
 

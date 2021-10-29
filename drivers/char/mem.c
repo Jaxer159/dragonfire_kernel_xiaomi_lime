@@ -39,7 +39,7 @@
 #define DEVPORT_MINOR	4
 
 #ifdef CONFIG_SRANDOM
-#include <../drivers/char/srandom/srandom.h>
+#include <linux/srandom.h>
 #endif
 
 static inline unsigned long size_inside_page(unsigned long start,

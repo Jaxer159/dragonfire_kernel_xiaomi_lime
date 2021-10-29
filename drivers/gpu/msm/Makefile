@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-only
 ccflags-y += -I$(src)
+ccflags-y += $(call cc-option, -funroll-loops,)
+ccflags-y += $(call cc-option, -ffast-math,)
 
 msm_kgsl_core-y = \
 	kgsl.o \
@@ -19,6 +21,7 @@ msm_kgsl_core-y = \
 	kgsl_pool.o \
 	kgsl_reclaim.o
 
+msm_kgsl_core-$(CONFIG_DEBUG_KERNEL) += kgsl_trace.o
 msm_kgsl_core-$(CONFIG_QCOM_KGSL_IOMMU) += kgsl_iommu.o
 msm_kgsl_core-$(CONFIG_DEBUG_FS) += kgsl_debugfs.o
 msm_kgsl_core-$(CONFIG_SYNC_FILE) += kgsl_sync.o
@@ -30,7 +33,6 @@ msm_adreno-y += \
 	adreno_drawctxt.o \
 	adreno_dispatch.o \
 	adreno_snapshot.o \
-	adreno_coresight.o \
 	adreno_trace.o \
 	adreno_a3xx.o \
 	adreno_a5xx.o \
@@ -47,9 +49,14 @@ msm_adreno-y += \
 	adreno_cp_parser.o \
 	adreno_perfcounter.o
 
+ifdef CONFIG_DEBUG_KERNEL
+msm_adreno-y += adreno_trace.o
+endif
+
 msm_adreno-$(CONFIG_QCOM_KGSL_IOMMU) += adreno_iommu.o
 msm_adreno-$(CONFIG_DEBUG_FS) += adreno_debugfs.o adreno_profile.o
 msm_adreno-$(CONFIG_COMPAT) += adreno_compat.o
+msm_adreno-$(CONFIG_CORESIGHT_ADRENO) += adreno_coresight.o
 
 msm_kgsl_core-objs = $(msm_kgsl_core-y)
 msm_adreno-objs = $(msm_adreno-y)

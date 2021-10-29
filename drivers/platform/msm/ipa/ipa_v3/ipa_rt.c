@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
- * Copyright (C) 2020 XiaoMi, Inc.
+ * Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/bitops.h>
@@ -170,9 +169,6 @@ static int ipa_translate_rt_tbl_to_hw_fmt(enum ipa_ip_type ip,
 			/* only body (no header) */
 			tbl_mem.size = tbl->sz[rlt] -
 				ipahal_get_hw_tbl_hdr_width();
-			/* Add prefetech buf size. */
-			tbl_mem.size +=
-				ipahal_get_hw_prefetch_buf_size();
 			if (ipahal_fltrt_allocate_hw_sys_tbl(&tbl_mem)) {
 				IPAERR_RL("fail to alloc sys tbl of size %d\n",
 					tbl_mem.size);
@@ -1201,7 +1197,7 @@ static void __ipa_convert_rt_rule_in(struct ipa_rt_rule rule_in,
 {
 	if (unlikely(sizeof(struct ipa_rt_rule) >
 			sizeof(struct ipa_rt_rule_i))) {
-		IPAERR_RL("invalid size in: %d size out: %d\n",
+		IPAERR_RL("invalid size in: %lu size out: %lu\n",
 			sizeof(struct ipa_rt_rule),
 			sizeof(struct ipa_rt_rule_i));
 		return;
@@ -1215,7 +1211,7 @@ static void __ipa_convert_rt_rule_out(struct ipa_rt_rule_i rule_in,
 {
 	if (unlikely(sizeof(struct ipa_rt_rule) >
 			sizeof(struct ipa_rt_rule_i))) {
-		IPAERR_RL("invalid size in:%d size out:%d\n",
+		IPAERR_RL("invalid size in:%lu size out:%lu\n",
 			sizeof(struct ipa_rt_rule),
 			sizeof(struct ipa_rt_rule_i));
 		return;
@@ -1229,7 +1225,7 @@ static void __ipa_convert_rt_mdfy_in(struct ipa_rt_rule_mdfy rule_in,
 {
 	if (unlikely(sizeof(struct ipa_rt_rule_mdfy) >
 			sizeof(struct ipa_rt_rule_mdfy_i))) {
-		IPAERR_RL("invalid size in:%d size out:%d\n",
+		IPAERR_RL("invalid size in:%lu size out:%lu\n",
 			sizeof(struct ipa_rt_rule_mdfy),
 			sizeof(struct ipa_rt_rule_mdfy_i));
 		return;
@@ -1246,7 +1242,7 @@ static void __ipa_convert_rt_mdfy_out(struct ipa_rt_rule_mdfy_i rule_in,
 {
 	if (unlikely(sizeof(struct ipa_rt_rule_mdfy) >
 			sizeof(struct ipa_rt_rule_mdfy_i))) {
-		IPAERR_RL("invalid size in:%d size out:%d\n",
+		IPAERR_RL("invalid size in:%lu size out:%lu\n",
 			sizeof(struct ipa_rt_rule_mdfy),
 			sizeof(struct ipa_rt_rule_mdfy_i));
 		return;

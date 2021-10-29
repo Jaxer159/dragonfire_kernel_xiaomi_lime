@@ -30,7 +30,7 @@
 #include <linux/types.h>
 #include <linux/atomic.h>
 #include <linux/frontswap.h>
-#include <linux/btree.h>
+#include <linux/rbtree.h>
 #include <linux/swap.h>
 #include <linux/crypto.h>
 #include <linux/mempool.h>
@@ -146,6 +146,7 @@ struct zswap_pool {
  * This structure contains the metadata for tracking a single compressed
  * page within zswap.
  *
+ * rbnode - links the entry into red-black tree for the appropriate swap type
  * offset - the swap offset for the entry.  Index into the red-black tree.
  * refcount - the number of outstanding reference to the entry. This is needed
  *            to protect against premature freeing of the entry by code
@@ -160,6 +161,7 @@ struct zswap_pool {
  * value - value of the same-value filled pages which have same content
  */
 struct zswap_entry {
+	struct rb_node rbnode;
 	pgoff_t offset;
 	int refcount;
 	unsigned int length;
@@ -176,11 +178,11 @@ struct zswap_header {
 
 /*
  * The tree lock in the zswap_tree struct protects a few things:
- * - the tree
+ * - the rbtree
  * - the refcount field of each entry in the tree
  */
 struct zswap_tree {
-	struct btree_head head;
+	struct rb_root rbroot;
 	spinlock_t lock;
 };
 
@@ -262,6 +264,7 @@ static struct zswap_entry *zswap_entry_cache_alloc(gfp_t gfp)
 	if (unlikely(!entry))
 		return NULL;
 	entry->refcount = 1;
+	RB_CLEAR_NODE(&entry->rbnode);
 	return entry;
 }
 
@@ -271,18 +274,58 @@ static void zswap_entry_cache_free(struct zswap_entry *entry)
 }
 
 /*********************************
-* btree functions
+* rbtree functions
 **********************************/
-static struct btree_geo *btree_pgofft_geo;
-
-static struct zswap_entry *zswap_search(struct btree_head *head, pgoff_t offset)
+static struct zswap_entry *zswap_rb_search(struct rb_root *root, pgoff_t offset)
 {
-	return btree_lookup(head, btree_pgofft_geo, &offset);
+	struct rb_node *node = root->rb_node;
+	struct zswap_entry *entry;
+
+	while (node) {
+		entry = rb_entry(node, struct zswap_entry, rbnode);
+		if (entry->offset > offset)
+			node = node->rb_left;
+		else if (entry->offset < offset)
+			node = node->rb_right;
+		else
+			return entry;
+	}
+	return NULL;
 }
 
-static void zswap_erase(struct btree_head *head, struct zswap_entry *entry)
+/*
+ * In the case that a entry with the same offset is found, a pointer to
+ * the existing entry is stored in dupentry and the function returns -EEXIST
+ */
+static int zswap_rb_insert(struct rb_root *root, struct zswap_entry *entry,
+			struct zswap_entry **dupentry)
 {
-	btree_remove(head, btree_pgofft_geo, &entry->offset);
+	struct rb_node **link = &root->rb_node, *parent = NULL;
+	struct zswap_entry *myentry;
+
+	while (*link) {
+		parent = *link;
+		myentry = rb_entry(parent, struct zswap_entry, rbnode);
+		if (myentry->offset > entry->offset)
+			link = &(*link)->rb_left;
+		else if (myentry->offset < entry->offset)
+			link = &(*link)->rb_right;
+		else {
+			*dupentry = myentry;
+			return -EEXIST;
+		}
+	}
+	rb_link_node(&entry->rbnode, parent, link);
+	rb_insert_color(&entry->rbnode, root);
+	return 0;
+}
+
+static void zswap_rb_erase(struct rb_root *root, struct zswap_entry *entry)
+{
+	if (!RB_EMPTY_NODE(&entry->rbnode)) {
+		rb_erase(&entry->rbnode, root);
+		RB_CLEAR_NODE(&entry->rbnode);
+	}
 }
 
 /*
@@ -311,40 +354,25 @@ static void zswap_entry_get(struct zswap_entry *entry)
 /* caller must hold the tree lock
 * remove from the tree and free it, if nobody reference the entry
 */
-static void zswap_entry_put(struct btree_head *head,
+static void zswap_entry_put(struct zswap_tree *tree,
 			struct zswap_entry *entry)
 {
 	int refcount = --entry->refcount;
 
 	BUG_ON(refcount < 0);
 	if (refcount == 0) {
-		zswap_erase(head, entry);
+		zswap_rb_erase(&tree->rbroot, entry);
 		zswap_free_entry(entry);
 	}
 }
 
-static int zswap_insert_or_replace(struct btree_head *head,
-				struct zswap_entry *entry)
-{
-	struct zswap_entry *old;
-
-	do {
-		old = btree_remove(head, btree_pgofft_geo, &entry->offset);
-		if (old) {
-			zswap_duplicate_entry++;
-			zswap_entry_put(head, old);
-		}
-	} while (old);
-	return btree_insert(head, btree_pgofft_geo, &entry->offset, entry,
-			GFP_ATOMIC);
-}
 /* caller must hold the tree lock */
-static struct zswap_entry *zswap_entry_find_get(struct btree_head *head,
+static struct zswap_entry *zswap_entry_find_get(struct rb_root *root,
 				pgoff_t offset)
 {
 	struct zswap_entry *entry;
 
-	entry = zswap_search(head, offset);
+	entry = zswap_rb_search(root, offset);
 	if (entry)
 		zswap_entry_get(entry);
 
@@ -489,7 +517,7 @@ static struct zswap_pool *zswap_pool_create(char *type, char *compressor)
 {
 	struct zswap_pool *pool;
 	char name[38]; /* 'zswap' + 32 char (max) num + \0 */
-	gfp_t gfp = __GFP_NORETRY | __GFP_NOWARN | __GFP_KSWAPD_RECLAIM | __GFP_HIGHMEM | __GFP_MOVABLE;
+	gfp_t gfp = __GFP_NORETRY | __GFP_NOWARN | __GFP_KSWAPD_RECLAIM;
 	int ret;
 
 	if (!zswap_has_pool) {
@@ -850,7 +878,7 @@ static int zswap_writeback_entry(struct zpool *pool, unsigned long handle)
 
 	/* find and ref zswap entry */
 	spin_lock(&tree->lock);
-	entry = zswap_entry_find_get(&tree->head, offset);
+	entry = zswap_entry_find_get(&tree->rbroot, offset);
 	if (!entry) {
 		/* entry was invalidated */
 		spin_unlock(&tree->lock);
@@ -900,7 +928,7 @@ static int zswap_writeback_entry(struct zpool *pool, unsigned long handle)
 
 	spin_lock(&tree->lock);
 	/* drop local reference */
-	zswap_entry_put(&tree->head, entry);
+	zswap_entry_put(tree, entry);
 
 	/*
 	* There are two possible situations for entry here:
@@ -909,8 +937,8 @@ static int zswap_writeback_entry(struct zpool *pool, unsigned long handle)
 	*     because invalidate happened during writeback
 	*  search the tree and free the entry if find entry
 	*/
-	if (entry == zswap_search(&tree->head, offset))
-		zswap_entry_put(&tree->head, entry);
+	if (entry == zswap_rb_search(&tree->rbroot, offset))
+		zswap_entry_put(tree, entry);
 	spin_unlock(&tree->lock);
 
 	goto end;
@@ -924,7 +952,7 @@ static int zswap_writeback_entry(struct zpool *pool, unsigned long handle)
 	*/
 fail:
 	spin_lock(&tree->lock);
-	zswap_entry_put(&tree->head, entry);
+	zswap_entry_put(tree, entry);
 	spin_unlock(&tree->lock);
 
 end:
@@ -977,15 +1005,14 @@ static int zswap_frontswap_store(unsigned type, pgoff_t offset,
 				struct page *page)
 {
 	struct zswap_tree *tree = zswap_trees[type];
-	struct zswap_entry *entry;
+	struct zswap_entry *entry, *dupentry;
 	struct crypto_comp *tfm;
 	int ret;
-	unsigned int hlen, dlen = PAGE_SIZE, len;
+	unsigned int hlen, dlen = PAGE_SIZE;
 	unsigned long handle, value;
 	char *buf;
 	u8 *src, *dst;
 	struct zswap_header zhdr = { .swpentry = swp_entry(type, offset) };
-	gfp_t gfp = __GFP_NORETRY | __GFP_NOWARN | __GFP_KSWAPD_RECLAIM | __GFP_HIGHMEM | __GFP_MOVABLE;
 
 	/* THP isn't supported */
 	if (PageTransHuge(page)) {
@@ -1058,16 +1085,10 @@ static int zswap_frontswap_store(unsigned type, pgoff_t offset,
 	}
 
 	/* store */
-
 	hlen = zpool_evictable(entry->pool->zpool) ? sizeof(zhdr) : 0;
 	ret = zpool_malloc(entry->pool->zpool, hlen + dlen,
 			   __GFP_NORETRY | __GFP_NOWARN | __GFP_KSWAPD_RECLAIM,
 			   &handle);
-
-	len = dlen + sizeof(struct zswap_header);
-	ret = zpool_malloc(entry->pool->zpool, len,
-			   gfp, &handle);
-
 	if (ret == -ENOSPC) {
 		zswap_reject_compress_poor++;
 		goto put_dstmem;
@@ -1090,12 +1111,16 @@ static int zswap_frontswap_store(unsigned type, pgoff_t offset,
 insert_entry:
 	/* map */
 	spin_lock(&tree->lock);
-	ret = zswap_insert_or_replace(&tree->head, entry);
+	do {
+		ret = zswap_rb_insert(&tree->rbroot, entry, &dupentry);
+		if (ret == -EEXIST) {
+			zswap_duplicate_entry++;
+			/* remove from rbtree */
+			zswap_rb_erase(&tree->rbroot, dupentry);
+			zswap_entry_put(tree, dupentry);
+		}
+	} while (ret == -EEXIST);
 	spin_unlock(&tree->lock);
-	if (ret < 0)  {
-		zswap_reject_alloc_fail++;
-		goto freepage;
-	}
 
 	/* update stats */
 	atomic_inc(&zswap_stored_pages);
@@ -1128,7 +1153,7 @@ static int zswap_frontswap_load(unsigned type, pgoff_t offset,
 
 	/* find */
 	spin_lock(&tree->lock);
-	entry = zswap_entry_find_get(&tree->head, offset);
+	entry = zswap_entry_find_get(&tree->rbroot, offset);
 	if (!entry) {
 		/* entry was written back */
 		spin_unlock(&tree->lock);
@@ -1158,7 +1183,7 @@ static int zswap_frontswap_load(unsigned type, pgoff_t offset,
 
 freeentry:
 	spin_lock(&tree->lock);
-	zswap_entry_put(&tree->head, entry);
+	zswap_entry_put(tree, entry);
 	spin_unlock(&tree->lock);
 
 	return 0;
@@ -1181,41 +1206,36 @@ static void zswap_frontswap_invalidate_page(unsigned type, pgoff_t offset)
 
 	/* find */
 	spin_lock(&tree->lock);
-	entry = zswap_search(&tree->head, offset);
+	entry = zswap_rb_search(&tree->rbroot, offset);
 	if (!entry) {
 		/* entry was written back */
 		spin_unlock(&tree->lock);
 		return;
 	}
 
-	/* remove from tree */
-	zswap_erase(&tree->head, entry);
+	/* remove from rbtree */
+	zswap_rb_erase(&tree->rbroot, entry);
 
 	/* drop the initial reference from entry creation */
-	zswap_entry_put(&tree->head, entry);
+	zswap_entry_put(tree, entry);
 
 	spin_unlock(&tree->lock);
-}
-
-void do_free_entry(void *elem, unsigned long opaque, unsigned long *key,
-		size_t index, void *func2)
-{
-	struct zswap_entry *entry = elem;
-	zswap_free_entry(entry);
 }
 
 /* frees all zswap entries for the given swap type */
 static void zswap_frontswap_invalidate_area(unsigned type)
 {
 	struct zswap_tree *tree = zswap_trees[type];
+	struct zswap_entry *entry, *n;
 
 	if (!tree)
 		return;
 
 	/* walk the tree and free everything */
 	spin_lock(&tree->lock);
-	btree_visitor(&tree->head, btree_pgofft_geo, 0, do_free_entry, NULL);
-	btree_destroy(&tree->head);
+	rbtree_postorder_for_each_entry_safe(entry, n, &tree->rbroot, rbnode)
+		zswap_free_entry(entry);
+	tree->rbroot = RB_ROOT;
 	spin_unlock(&tree->lock);
 	kfree(tree);
 	zswap_trees[type] = NULL;
@@ -1230,11 +1250,8 @@ static void zswap_frontswap_init(unsigned type)
 		pr_err("alloc failed, zswap disabled for swap type %d\n", type);
 		return;
 	}
-	if (btree_init(&tree->head) < 0) {
-		pr_err("couldn't init the tree head\n");
-		kfree(tree);
-		return;
-	}
+
+	tree->rbroot = RB_ROOT;
 	spin_lock_init(&tree->lock);
 	zswap_trees[type] = tree;
 }
@@ -1262,26 +1279,26 @@ static int __init zswap_debugfs_init(void)
 
 	zswap_debugfs_root = debugfs_create_dir("zswap", NULL);
 
-	debugfs_create_u64("pool_limit_hit", S_IRUGO,
-			zswap_debugfs_root, &zswap_pool_limit_hit);
-	debugfs_create_u64("reject_reclaim_fail", S_IRUGO,
-			zswap_debugfs_root, &zswap_reject_reclaim_fail);
-	debugfs_create_u64("reject_alloc_fail", S_IRUGO,
-			zswap_debugfs_root, &zswap_reject_alloc_fail);
-	debugfs_create_u64("reject_kmemcache_fail", S_IRUGO,
-			zswap_debugfs_root, &zswap_reject_kmemcache_fail);
-	debugfs_create_u64("reject_compress_poor", S_IRUGO,
-			zswap_debugfs_root, &zswap_reject_compress_poor);
-	debugfs_create_u64("written_back_pages", S_IRUGO,
-			zswap_debugfs_root, &zswap_written_back_pages);
-	debugfs_create_u64("duplicate_entry", S_IRUGO,
-			zswap_debugfs_root, &zswap_duplicate_entry);
-	debugfs_create_u64("pool_total_size", S_IRUGO,
-			zswap_debugfs_root, &zswap_pool_total_size);
-	debugfs_create_atomic_t("stored_pages", S_IRUGO,
-			zswap_debugfs_root, &zswap_stored_pages);
+	debugfs_create_u64("pool_limit_hit", 0444,
+			   zswap_debugfs_root, &zswap_pool_limit_hit);
+	debugfs_create_u64("reject_reclaim_fail", 0444,
+			   zswap_debugfs_root, &zswap_reject_reclaim_fail);
+	debugfs_create_u64("reject_alloc_fail", 0444,
+			   zswap_debugfs_root, &zswap_reject_alloc_fail);
+	debugfs_create_u64("reject_kmemcache_fail", 0444,
+			   zswap_debugfs_root, &zswap_reject_kmemcache_fail);
+	debugfs_create_u64("reject_compress_poor", 0444,
+			   zswap_debugfs_root, &zswap_reject_compress_poor);
+	debugfs_create_u64("written_back_pages", 0444,
+			   zswap_debugfs_root, &zswap_written_back_pages);
+	debugfs_create_u64("duplicate_entry", 0444,
+			   zswap_debugfs_root, &zswap_duplicate_entry);
+	debugfs_create_u64("pool_total_size", 0444,
+			   zswap_debugfs_root, &zswap_pool_total_size);
+	debugfs_create_atomic_t("stored_pages", 0444,
+				zswap_debugfs_root, &zswap_stored_pages);
 	debugfs_create_atomic_t("same_filled_pages", 0444,
-			zswap_debugfs_root, &zswap_same_filled_pages);
+				zswap_debugfs_root, &zswap_same_filled_pages);
 
 	return 0;
 }
@@ -1308,11 +1325,6 @@ static int __init init_zswap(void)
 	int ret;
 
 	zswap_init_started = true;
-
-	if (sizeof(pgoff_t) == 8)
-		btree_pgofft_geo = &btree_geo64;
-	else
-		btree_pgofft_geo = &btree_geo32;
 
 	if (zswap_entry_cache_create()) {
 		pr_err("entry cache creation failed\n");

@@ -427,7 +427,7 @@ static void sysstats_fill_zoneinfo(struct sys_memstats *stats)
 		if (!populated_zone(zone))
 			continue;
 
-#ifdef CONFIG_ZSMALLOC
+#if IS_ENABLED(CONFIG_ZSMALLOC)
 		zspages += zone_page_state(zone, NR_ZSPAGES);
 #endif
 		if (!strcmp(zone->name, "DMA")) {

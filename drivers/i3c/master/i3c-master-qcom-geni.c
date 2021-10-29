@@ -782,8 +782,8 @@ static int _i3c_geni_execute_command
 		geni_setup_m_cmd(gi3c->se.base, xfer->m_cmd, xfer->m_param);
 
 		GENI_SE_DBG(gi3c->ipcl, false, gi3c->se.dev,
-			"Read_mode:%d cmd:0x%x param:0x%x len:%d m_cmd:0x%x\n",
-			xfer->mode, xfer->m_cmd, xfer->m_param, len,
+			"I3C cmd:0x%x param:0x%x READ len:%d, m_cmd: 0x%x\n",
+			xfer->m_cmd, xfer->m_param, len,
 			geni_read_reg(gi3c->se.base, SE_GENI_M_CMD0));
 
 		if (xfer->mode == SE_DMA) {
@@ -794,10 +794,6 @@ static int _i3c_geni_execute_command
 				GENI_SE_ERR(gi3c->ipcl, true, gi3c->se.dev,
 					"DMA Err:%d, FIFO mode enabled\n", ret);
 				xfer->mode = FIFO_MODE;
-				GENI_SE_ERR(gi3c->ipcl, true, gi3c->se.dev,
-					"DMA Read Err:%d,Enabling FIFO mode\n",
-									ret);
-				WARN_ON(1);
 				geni_se_select_mode(gi3c->se.base, xfer->mode);
 			}
 		}
@@ -806,8 +802,8 @@ static int _i3c_geni_execute_command
 		geni_setup_m_cmd(gi3c->se.base, xfer->m_cmd, xfer->m_param);
 
 		GENI_SE_DBG(gi3c->ipcl, false, gi3c->se.dev,
-			"Write_mode:%d cmd:0x%x param:0x%x len:%d m_cmd:0x%x\n",
-			xfer->mode, xfer->m_cmd, xfer->m_param, len,
+			"I3C cmd:0x%x param:0x%x WRITE len:%d, m_cmd: 0x%x\n",
+			xfer->m_cmd, xfer->m_param, len,
 			geni_read_reg(gi3c->se.base, SE_GENI_M_CMD0));
 
 		if (xfer->mode == SE_DMA) {
@@ -818,10 +814,6 @@ static int _i3c_geni_execute_command
 				GENI_SE_ERR(gi3c->ipcl, true, gi3c->se.dev,
 					"DMA Err:%d, FIFO mode enabled\n", ret);
 				xfer->mode = FIFO_MODE;
-				GENI_SE_ERR(gi3c->ipcl, true, gi3c->se.dev,
-					"DMA Write Err:%d,Enabling FIFO mode\n",
-									ret);
-				WARN_ON(1);
 				geni_se_select_mode(gi3c->se.base, xfer->mode);
 			}
 		}
@@ -967,7 +959,7 @@ static void geni_i3c_perform_daa(struct geni_i3c_dev *gi3c)
 
 			if (pid == i3cboardinfo->pid) {
 				GENI_SE_DBG(gi3c->ipcl, false, gi3c->se.dev,
-				"PID 0x:%x matched with boardinfo\n", pid);
+				"PID 0x:%llx matched with boardinfo\n", pid);
 				break;
 			}
 		}
@@ -982,12 +974,12 @@ static void geni_i3c_perform_daa(struct geni_i3c_dev *gi3c)
 		addr = ret = i3c_master_get_free_addr(m, addr);
 		if (ret < 0) {
 			GENI_SE_DBG(gi3c->ipcl, false, gi3c->se.dev,
-			"error during get_free_addr ret:%d for pid:0x:%x\n"
+			"error during get_free_addr ret:%d for pid:0x:%llx\n"
 				, ret, pid);
 			goto daa_err;
 		} else if (ret == init_dyn_addr) {
 			GENI_SE_DBG(gi3c->ipcl, false, gi3c->se.dev,
-				"assigning requested addr:0x%x for pid:0x:%x\n"
+				"assigning requested addr:0x%x for pid:0x:%llx\n"
 				, ret, pid);
 		} else if (init_dyn_addr) {
 			i3c_bus_for_each_i3cdev(&m->bus, i3cdev) {
@@ -999,16 +991,16 @@ static void geni_i3c_perform_daa(struct geni_i3c_dev *gi3c)
 			if (enum_slv) {
 				addr = i3cdev->info.dyn_addr;
 				GENI_SE_DBG(gi3c->ipcl, false, gi3c->se.dev,
-					"assigning requested addr:0x%x for pid:0x:%x\n"
+					"assigning requested addr:0x%x for pid:0x:%llx\n"
 					, addr, pid);
 			} else {
 				GENI_SE_DBG(gi3c->ipcl, false, gi3c->se.dev,
-				"new dev: assigning addr:0x%x for pid:x:%x\n"
+				"new dev: assigning addr:0x%x for pid:x:%llx\n"
 				, ret, pid);
 			}
 		} else {
 			GENI_SE_DBG(gi3c->ipcl, false, gi3c->se.dev,
-				"assigning addr:0x%x for pid:x:%x\n", ret, pid);
+				"assigning addr:0x%x for pid:x:%llx\n", ret, pid);
 		}
 
 		if (!i3cboardinfo->init_dyn_addr)
@@ -1147,7 +1139,7 @@ static int geni_i3c_master_priv_xfers
 
 	for (i = 0; i < nxfers; i++) {
 		bool stall = (i < (nxfers - 1));
-		struct i3c_xfer_params xfer = { SE_DMA };
+		struct i3c_xfer_params xfer = { FIFO_MODE };
 
 		xfer.m_param  = (stall ? STOP_STRETCH : 0);
 		xfer.m_param |= ((dev->info.dyn_addr & I3C_ADDR_MASK)
@@ -1538,7 +1530,7 @@ static int geni_i3c_master_request_ibi(struct i3c_dev_desc *dev,
 	data->ibi_pool = i3c_generic_ibi_alloc_pool(dev, req);
 	if (IS_ERR(data->ibi_pool)) {
 		GENI_SE_ERR(gi3c->ipcl, true, gi3c->se.dev,
-			"Error creating a generic IBI pool %d\n",
+			"Error creating a generic IBI pool %ld\n",
 			PTR_ERR(data->ibi_pool));
 		return PTR_ERR(data->ibi_pool);
 	}
@@ -1581,7 +1573,7 @@ static int geni_i3c_master_request_ibi(struct i3c_dev_desc *dev,
 	}
 
 	GENI_SE_ERR(gi3c->ipcl, true, gi3c->se.dev,
-		"ibi.num_slots ran out %d: %d\n", i, gi3c->ibi.num_slots);
+		"ibi.num_slots ran out %lu: %d\n", i, gi3c->ibi.num_slots);
 
 	i3c_generic_ibi_free_pool(data->ibi_pool);
 	data->ibi_pool = NULL;

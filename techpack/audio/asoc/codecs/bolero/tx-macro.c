@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-only
-/* Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2018-2020, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -175,7 +175,7 @@ struct tx_macro_priv {
 	int dec_mode[NUM_DECIMATORS];
 	bool bcs_clk_en;
 	bool hs_slow_insert_complete;
-	int pcm_rate[NUM_DECIMATORS];
+	int amic_sample_rate;
 };
 
 static bool tx_macro_get_data(struct snd_soc_component *component,
@@ -501,23 +501,23 @@ static void tx_macro_tx_hpf_corner_freq_callback(struct work_struct *work)
 		snd_soc_component_update_bits(component, hpf_gate_reg,
 						0x03, 0x02);
 		/* Add delay between toggle hpf gate based on sample rate */
-		switch (tx_priv->pcm_rate[hpf_work->decimator]) {
-		case 0:
+		switch(tx_priv->amic_sample_rate) {
+		case 8000:
 			usleep_range(125, 130);
 			break;
-		case 1:
+		case 16000:
 			usleep_range(62, 65);
 			break;
-		case 3:
+		case 32000:
 			usleep_range(31, 32);
 			break;
-		case 4:
+		case 48000:
 			usleep_range(20, 21);
 			break;
-		case 5:
+		case 96000:
 			usleep_range(10, 11);
 			break;
-		case 6:
+		case 192000:
 			usleep_range(5, 6);
 			break;
 		default:
@@ -953,7 +953,7 @@ static int tx_macro_enable_dec(struct snd_soc_dapm_widget *w,
 	tx_fs_reg = BOLERO_CDC_TX0_TX_PATH_CTL +
 				TX_MACRO_TX_PATH_OFFSET * decimator;
 
-	tx_priv->pcm_rate[decimator] = (snd_soc_component_read32(component,
+	tx_priv->amic_sample_rate = (snd_soc_component_read32(component,
 				     tx_fs_reg) & 0x0F);
 
 	switch (event) {
@@ -1103,28 +1103,6 @@ static int tx_macro_enable_micbias(struct snd_soc_dapm_widget *w,
 {
 	return 0;
 }
-
-/* Cutoff frequency for high pass filter */
-static const char * const cf_text[] = {
-	"CF_NEG_3DB_4HZ", "CF_NEG_3DB_75HZ", "CF_NEG_3DB_150HZ"
-};
-
-static SOC_ENUM_SINGLE_DECL(cf_dec0_enum, BOLERO_CDC_TX0_TX_PATH_CFG0, 5,
-							cf_text);
-static SOC_ENUM_SINGLE_DECL(cf_dec1_enum, BOLERO_CDC_TX1_TX_PATH_CFG0, 5,
-							cf_text);
-static SOC_ENUM_SINGLE_DECL(cf_dec2_enum, BOLERO_CDC_TX2_TX_PATH_CFG0, 5,
-							cf_text);
-static SOC_ENUM_SINGLE_DECL(cf_dec3_enum, BOLERO_CDC_TX3_TX_PATH_CFG0, 5,
-							cf_text);
-static SOC_ENUM_SINGLE_DECL(cf_dec4_enum, BOLERO_CDC_TX4_TX_PATH_CFG0, 5,
-							cf_text);
-static SOC_ENUM_SINGLE_DECL(cf_dec5_enum, BOLERO_CDC_TX5_TX_PATH_CFG0, 5,
-							cf_text);
-static SOC_ENUM_SINGLE_DECL(cf_dec6_enum, BOLERO_CDC_TX6_TX_PATH_CFG0, 5,
-							cf_text);
-static SOC_ENUM_SINGLE_DECL(cf_dec7_enum, BOLERO_CDC_TX7_TX_PATH_CFG0, 5,
-							cf_text);
 
 static int tx_macro_hw_params(struct snd_pcm_substream *substream,
 			   struct snd_pcm_hw_params *params,
@@ -2434,21 +2412,6 @@ static const struct snd_kcontrol_new tx_macro_snd_controls[] = {
 
 	SOC_ENUM_EXT("DEC7 MODE", dec_mode_mux_enum,
 			tx_macro_dec_mode_get, tx_macro_dec_mode_put),
-	SOC_ENUM("TX0 HPF cut off", cf_dec0_enum),
-
-	SOC_ENUM("TX1 HPF cut off", cf_dec1_enum),
-
-	SOC_ENUM("TX2 HPF cut off", cf_dec2_enum),
-
-	SOC_ENUM("TX3 HPF cut off", cf_dec3_enum),
-
-	SOC_ENUM("TX4 HPF cut off", cf_dec4_enum),
-
-	SOC_ENUM("TX5 HPF cut off", cf_dec5_enum),
-
-	SOC_ENUM("TX6 HPF cut off", cf_dec6_enum),
-
-	SOC_ENUM("TX7 HPF cut off", cf_dec7_enum),
 
 	SOC_SINGLE_EXT("DEC0_BCS Switch", SND_SOC_NOPM, 0, 1, 0,
 		       tx_macro_get_bcs, tx_macro_set_bcs),
@@ -3317,13 +3280,13 @@ static int tx_macro_probe(struct platform_device *pdev)
 			"%s: register macro failed\n", __func__);
 		goto err_reg_macro;
 	}
+	if (is_used_tx_swr_gpio)
+		schedule_work(&tx_priv->tx_macro_add_child_devices_work);
 	pm_runtime_set_autosuspend_delay(&pdev->dev, AUTO_SUSPEND_DELAY);
 	pm_runtime_use_autosuspend(&pdev->dev);
 	pm_runtime_set_suspended(&pdev->dev);
 	pm_suspend_ignore_children(&pdev->dev, true);
 	pm_runtime_enable(&pdev->dev);
-	if (is_used_tx_swr_gpio)
-		schedule_work(&tx_priv->tx_macro_add_child_devices_work);
 
 	return 0;
 err_reg_macro:

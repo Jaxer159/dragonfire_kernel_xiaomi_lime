@@ -349,10 +349,6 @@
 
 /* #define ADD_INTERRUPT_BENCH */
 
-#ifdef CONFIG_SRANDOM
-#include <../drivers/char/srandom/srandom.h>
-#endif
-
 /*
  * Configuration information
  */
@@ -1113,8 +1109,6 @@ void add_device_randomness(const void *buf, unsigned int size)
 }
 EXPORT_SYMBOL(add_device_randomness);
 
-static struct timer_rand_state input_timer_state = INIT_TIMER_RAND_STATE;
-
 /*
  * This function adds entropy to the entropy "pool" by using timing
  * delays.  It uses the timer_rand_state structure to make an estimate
@@ -1177,16 +1171,7 @@ static void add_timer_randomness(struct timer_rand_state *state, unsigned num)
 void add_input_randomness(unsigned int type, unsigned int code,
 				 unsigned int value)
 {
-	static unsigned char last_value;
-
-	/* ignore autorepeat and the like */
-	if (value == last_value)
-		return;
-
-	last_value = value;
-	add_timer_randomness(&input_timer_state,
-			     (type << 4) ^ code ^ (code >> 4) ^ value);
-	trace_add_input_randomness(ENTROPY_BITS(&input_pool));
+	return;
 }
 EXPORT_SYMBOL_GPL(add_input_randomness);
 
@@ -1253,7 +1238,6 @@ void add_interrupt_randomness(int irq, int irq_flags)
 
 	fast_mix(fast_pool);
 	add_interrupt_bench(cycles);
-	this_cpu_add(net_rand_state.s1, fast_pool->pool[cycles & 3]);
 
 	if (unlikely(crng_init == 0)) {
 		if ((fast_pool->count >= 64) &&
@@ -1832,7 +1816,6 @@ urandom_read(struct file *file, char __user *buf, size_t nbytes, loff_t *ppos)
 	return urandom_read_nowarn(file, buf, nbytes, ppos);
 }
 
-#ifndef CONFIG_SRANDOM
 static ssize_t
 random_read(struct file *file, char __user *buf, size_t nbytes, loff_t *ppos)
 {
@@ -1858,7 +1841,6 @@ random_poll(struct file *file, poll_table * wait)
 		mask |= EPOLLOUT | EPOLLWRNORM;
 	return mask;
 }
-#endif
 
 static int
 write_pool(struct entropy_store *r, const char __user *buffer, size_t count)
@@ -1890,7 +1872,6 @@ write_pool(struct entropy_store *r, const char __user *buffer, size_t count)
 	return 0;
 }
 
-#ifndef CONFIG_SRANDOM
 static ssize_t random_write(struct file *file, const char __user *buffer,
 			    size_t count, loff_t *ppos)
 {
@@ -1902,7 +1883,6 @@ static ssize_t random_write(struct file *file, const char __user *buffer,
 
 	return (ssize_t)count;
 }
-#endif
 
 static long random_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
 {
@@ -1952,7 +1932,7 @@ static long random_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
 			return -EPERM;
 		if (crng_init < 2)
 			return -ENODATA;
-		crng_reseed(&primary_crng, NULL);
+		crng_reseed(&primary_crng, &input_pool);
 		crng_global_init_time = jiffies - 1;
 		return 0;
 	default:
@@ -1966,25 +1946,17 @@ static int random_fasync(int fd, struct file *filp, int on)
 }
 
 const struct file_operations random_fops = {
-	#ifdef CONFIG_SRANDOM
-	.read  = sdevice_read,
-	.write = sdevice_write,
-	#else
-        .write = random_write,
-	#endif
+	.read  = urandom_read,
+	.write = random_write,
+	.poll  = random_poll,
 	.unlocked_ioctl = random_ioctl,
 	.fasync = random_fasync,
 	.llseek = noop_llseek,
 };
 
 const struct file_operations urandom_fops = {
-	#ifdef CONFIG_SRANDOM
-	.read  = sdevice_read,
-	.write = sdevice_write,
-	#else
 	.read  = urandom_read,
 	.write = random_write,
-	#endif
 	.unlocked_ioctl = random_ioctl,
 	.fasync = random_fasync,
 	.llseek = noop_llseek,
@@ -2015,11 +1987,7 @@ SYSCALL_DEFINE3(getrandom, char __user *, buf, size_t, count,
 		if (unlikely(ret))
 			return ret;
 	}
-    #ifdef CONFIG_SRANDOM
-	return sdevice_read(NULL, buf, count, NULL);
-	#else
 	return urandom_read_nowarn(NULL, buf, count, NULL);
-	#endif
 }
 
 /********************************************************************

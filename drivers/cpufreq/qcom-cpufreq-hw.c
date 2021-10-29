@@ -261,7 +261,7 @@ static u64 qcom_cpufreq_get_cpu_cycle_counter(int cpu)
 
 	offset = CYCLE_CNTR_OFFSET(cpu, &cpu_domain->related_cpus,
 					accumulative_counter);
-	val = readl_relaxed_no_log(cpu_domain->reg_bases[REG_CYCLE_CNTR] +
+	val = readl_relaxed(cpu_domain->reg_bases[REG_CYCLE_CNTR] +
 				   offset);
 
 	if (val < cpu_counter->prev_cycle_counter) {
@@ -521,24 +521,39 @@ static int qcom_cpufreq_hw_read_lut(struct platform_device *pdev,
 
 		if (!of_find_freq(of_table, of_len, c->table[i].frequency)) {
 			c->table[i].frequency = CPUFREQ_ENTRY_INVALID;
-
+			cur_freq = CPUFREQ_ENTRY_INVALID;
 		} else {
 			if (core_count != c->max_cores) {
-				cur_freq = CPUFREQ_ENTRY_INVALID;
-				c->table[i].flags = CPUFREQ_BOOST_FREQ;
+				if (core_count == (c->max_cores - 1)) {
+					c->skip_data.skip = true;
+					c->skip_data.high_temp_index = i;
+					c->skip_data.freq = cur_freq;
+					c->skip_data.cc = core_count;
+					c->skip_data.final_index = i + 1;
+					c->skip_data.low_temp_index = i + 1;
+					c->skip_data.prev_freq =
+							c->table[i-1].frequency;
+					c->skip_data.prev_index = i - 1;
+					c->skip_data.prev_cc = prev_cc;
+				} else {
+					cur_freq = CPUFREQ_ENTRY_INVALID;
+					c->table[i].flags = CPUFREQ_BOOST_FREQ;
+				}
 			}
 
 			/*
-			 * Two of the same frequencies with the same core counts
-			 * means end of table.
-			*/
+			 * Two of the same frequencies with the same core counts means
+			 * end of table.
+			 */
 			if (i > 0 && c->table[i - 1].frequency ==
-			c->table[i].frequency && prev_cc == core_count) {
-				struct cpufreq_frequency_table *prev =
-					&c->table[i - 1];
+					c->table[i].frequency) {
+				if (prev_cc == core_count) {
+					struct cpufreq_frequency_table *prev =
+								&c->table[i - 1];
 
-				if (prev_freq == CPUFREQ_ENTRY_INVALID)
-					prev->flags = CPUFREQ_BOOST_FREQ;
+					if (prev_freq == CPUFREQ_ENTRY_INVALID)
+						prev->flags = CPUFREQ_BOOST_FREQ;
+				}
 				break;
 			}
 		}
@@ -559,7 +574,18 @@ static int qcom_cpufreq_hw_read_lut(struct platform_device *pdev,
 	c->table[i].frequency = CPUFREQ_TABLE_END;
 
 	if (of_table)
-		devm_kfree(dev, of_table);
+			devm_kfree(dev, of_table);
+
+	if (c->skip_data.skip) {
+		pr_info("%s Skip: Index[%u], Frequency[%u], Core Count %u, Final Index %u Actual Index %u Prev_Freq[%u] Prev_Index[%u] Prev_CC[%u]\n",
+				__func__, c->skip_data.high_temp_index,
+				c->skip_data.freq, c->skip_data.cc,
+				c->skip_data.final_index,
+				c->skip_data.low_temp_index,
+				c->skip_data.prev_freq,
+				c->skip_data.prev_index,
+				c->skip_data.prev_cc);
+	}
 
 	return 0;
 
@@ -831,7 +857,7 @@ static int cpufreq_hw_register_cooling_device(struct platform_device *pdev)
 						cpu_cdev,
 						&cpufreq_hw_cooling_ops);
 				if (IS_ERR(cpu_cdev->cdev)) {
-					pr_err("Cooling register failed for %s, ret: %d\n",
+					pr_err("Cooling register failed for %s, ret: %ld\n",
 						cdev_name,
 						PTR_ERR(cpu_cdev->cdev));
 					c->skip_data.final_index =

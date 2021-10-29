@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/jiffies.h>
@@ -3074,6 +3074,7 @@ static int msm_comm_init_core(struct msm_vidc_inst *inst)
 	core->state = VIDC_CORE_INIT;
 	core->smmu_fault_handled = false;
 	core->trigger_ssr = false;
+	core->resources.max_inst_count = MAX_SUPPORTED_INSTANCES;
 	core->resources.max_secure_inst_count =
 		core->resources.max_secure_inst_count ?
 		core->resources.max_secure_inst_count :
@@ -5830,7 +5831,7 @@ static u32 msm_comm_get_memory_limit(struct msm_vidc_core *core)
 
 	memory_limits_tbl = core->resources.mem_limit_tbl;
 	memory_limits_tbl_size = core->resources.memory_limit_table_size;
-	memory_limit_mbytes = ((u64)totalram_pages * PAGE_SIZE) >> 20;
+	memory_limit_mbytes = ((u64)totalram_pages() * PAGE_SIZE) >> 20;
 	for (i = memory_limits_tbl_size - 1; i >= 0; i--) {
 		memory_size = memory_limits_tbl[i].ddr_size;
 		memory_limit = memory_limits_tbl[i].mem_limit;
@@ -6185,12 +6186,10 @@ int msm_vidc_check_session_supported(struct msm_vidc_inst *inst)
 				width_min, height_min);
 			rc = -ENOTSUPP;
 		}
-		if (!rc && (output_width > width_max ||
-				output_height > height_max)) {
+		if (!rc && output_width > width_max) {
 			s_vpr_e(sid,
-				"Unsupported WxH (%u)x(%u), max supported is (%u)x(%u)\n",
-				output_width, output_height,
-				width_max, height_max);
+				"Unsupported width = %u supported max width = %u\n",
+				output_width, width_max);
 				rc = -ENOTSUPP;
 		}
 

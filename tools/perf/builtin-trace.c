@@ -59,7 +59,7 @@
 #include <linux/time64.h>
 #include <fcntl.h>
 
-#include <linux/ctype.h>
+#include "sane_ctype.h"
 
 #ifndef O_CLOEXEC
 # define O_CLOEXEC		02000000

@@ -76,9 +76,8 @@ static char *check[] = {
 	"cast6", "arc4", "michael_mic", "deflate", "crc32c", "tea", "xtea",
 	"khazad", "wp512", "wp384", "wp256", "tnepres", "xeta",  "fcrypt",
 	"camellia", "seed", "salsa20", "rmd128", "rmd160", "rmd256", "rmd320",
-	"lzo", "lzo-rle", "cts", "zlib", "sha3-224", "sha3-256", "sha3-384", "sha3-512",
-        "sb256", "sb512",
-	NULL
+	"lzo", "lzo-rle", "cts", "zlib", "sha3-224", "sha3-256", "sha3-384",
+	"sha3-512", NULL
 };
 
 static u32 block_sizes[] = { 16, 64, 256, 1024, 8192, 0 };
@@ -203,8 +202,8 @@ static int test_mb_aead_jiffies(struct test_mb_aead_data *data, int enc,
 			goto out;
 	}
 
-	pr_cont("%d operations in %d seconds (%ld bytes)\n",
-		bcount * num_mb, secs, (long)bcount * blen * num_mb);
+	pr_cont("%d operations in %d seconds (%llu bytes)\n",
+		bcount * num_mb, secs, (u64)bcount * blen * num_mb);
 
 out:
 	kfree(rc);
@@ -473,8 +472,8 @@ static int test_aead_jiffies(struct aead_request *req, int enc,
 			return ret;
 	}
 
-	printk("%d operations in %d seconds (%ld bytes)\n",
-	       bcount, secs, (long)bcount * blen);
+	pr_cont("%d operations in %d seconds (%llu bytes)\n",
+	        bcount, secs, (u64)bcount * blen);
 	return 0;
 }
 
@@ -764,8 +763,8 @@ static int test_mb_ahash_jiffies(struct test_mb_ahash_data *data, int blen,
 			goto out;
 	}
 
-	pr_cont("%d operations in %d seconds (%ld bytes)\n",
-		bcount * num_mb, secs, (long)bcount * blen * num_mb);
+	pr_cont("%d operations in %d seconds (%llu bytes)\n",
+		bcount * num_mb, secs, (u64)bcount * blen * num_mb);
 
 out:
 	kfree(rc);
@@ -1201,8 +1200,8 @@ static int test_mb_acipher_jiffies(struct test_mb_skcipher_data *data, int enc,
 			goto out;
 	}
 
-	pr_cont("%d operations in %d seconds (%ld bytes)\n",
-		bcount * num_mb, secs, (long)bcount * blen * num_mb);
+	pr_cont("%d operations in %d seconds (%llu bytes)\n",
+		bcount * num_mb, secs, (u64)bcount * blen * num_mb);
 
 out:
 	kfree(rc);
@@ -1439,8 +1438,8 @@ static int test_acipher_jiffies(struct skcipher_request *req, int enc,
 			return ret;
 	}
 
-	pr_cont("%d operations in %d seconds (%ld bytes)\n",
-		bcount, secs, (long)bcount * blen);
+	pr_cont("%d operations in %d seconds (%llu bytes)\n",
+		bcount, secs, (u64)bcount * blen);
 	return 0;
 }
 
@@ -1917,14 +1916,6 @@ static int do_test(const char *alg, u32 type, u32 mask, int m, u32 num_mb)
 
 	case 52:
 		ret += tcrypt_test("sm3");
-		break;
-
-	case 53:
-		ret += tcrypt_test("sb256");
-		break;
-
-	case 54:
-		ret += tcrypt_test("sb512");
 		break;
 
 	case 100:
@@ -2420,15 +2411,6 @@ static int do_test(const char *alg, u32 type, u32 mask, int m, u32 num_mb)
 		test_hash_speed("sm3", sec, generic_hash_speed_template);
 		if (mode > 300 && mode < 400) break;
 		/* fall through */
-	case 327:
-		test_hash_speed("sb256", sec, generic_hash_speed_template);
-		if (mode > 300 && mode < 400) break;
-		/* fall through */
-	case 328:
-		test_hash_speed("sb512", sec, generic_hash_speed_template);
-		if (mode > 300 && mode < 400) break;
-		/* fall through */
-
 	case 399:
 		break;
 
@@ -2542,17 +2524,6 @@ static int do_test(const char *alg, u32 type, u32 mask, int m, u32 num_mb)
 				    num_mb);
 		if (mode > 400 && mode < 500) break;
 		/* fall through */
- 	case 426:
-		test_mb_ahash_speed("sb256", sec, generic_hash_speed_template,
- 				    num_mb);
- 		if (mode > 400 && mode < 500) break;
- 		/* fall through */
-    case 427:
-		test_mb_ahash_speed("sb512", sec, generic_hash_speed_template,
-				    num_mb);
-		if (mode > 400 && mode < 500) break;
-		/* fall through */
-
 	case 499:
 		break;
 

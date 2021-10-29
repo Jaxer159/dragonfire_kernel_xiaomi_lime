@@ -31,9 +31,6 @@
 #include <linux/topology.h>
 #include <linux/interrupt.h>
 #include <linux/irq.h>
-#ifdef CONFIG_SCHED_CORE_CTL
-#include <linux/sched/core_ctl.h>
-#endif
 #include <pld_common.h>
 #include <linux/pm.h>
 
@@ -587,7 +584,7 @@ int hif_napi_event(struct hif_opaque_softc *hif_ctx, enum qca_napi_event event,
 	}
 
 	case NAPI_EVT_TPUT_STATE: {
-		tput_mode = (enum qca_napi_tput_state)data;
+		tput_mode = (enum qca_napi_tput_state)(long)data;
 		if (tput_mode == QCA_NAPI_TPUT_LO) {
 			/* from TPUT_HI -> TPUT_LO */
 			NAPI_DEBUG("%s: Moving to napi_tput_LO state",

@@ -22,7 +22,6 @@
 #include "msm-pcm-routing-v2.h"
 #include <asoc/msm-cdc-pinctrl.h>
 #include "msm8952.h"
-#include "msm-pcm-voice-v2.h"
 
 #define DRV_NAME "msm8952-asoc-wcd"
 
@@ -2253,13 +2252,12 @@ static struct snd_soc_dai_link msm8952_dai[] = {
 		.ignore_pmdown_time = 1,
 	},
 	{/* hw:x,27 */
-		.name = "MSM8X16 MultiMedia10",
-		.stream_name = "MultiMedia10",
+		.name = "MSM8X16 Compress3",
+		.stream_name = "Compress3",
 		.cpu_dai_name	= "MultiMedia10",
 		.platform_name  = "msm-pcm-dsp.1",
 		.dynamic = 1,
 		.dpcm_playback = 1,
-		.dpcm_capture = 1,
 		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 			 SND_SOC_DPCM_TRIGGER_POST},
 		.codec_dai_name = "snd-soc-dummy-dai",
@@ -2691,33 +2689,6 @@ static struct snd_soc_dai_link msm8952_dai[] = {
 		.id = MSM_BACKEND_DAI_QUINARY_MI2S_TX,
 		.be_hw_params_fixup = msm_be_hw_params_fixup,
 		.ops = &msm8952_quin_mi2s_be_ops,
-		.ignore_suspend = 1,
-	},
-	/* Proxy Tx BACK END DAI Link */
-	{
-		.name = LPASS_BE_PROXY_TX,
-		.stream_name = "Proxy Capture",
-		.cpu_dai_name = "msm-dai-q6-dev.8195",
-		.platform_name = "msm-pcm-routing",
-		.codec_name = "msm-stub-codec.1",
-		.codec_dai_name = "msm-stub-tx",
-		.no_pcm = 1,
-		.dpcm_capture = 1,
-		.id = MSM_BACKEND_DAI_PROXY_TX,
-		.ignore_suspend = 1,
-	},
-	/* Proxy Rx BACK END DAI Link */
-	{
-		.name = LPASS_BE_PROXY_RX,
-		.stream_name = "Proxy Playback",
-		.cpu_dai_name = "msm-dai-q6-dev.8194",
-		.platform_name = "msm-pcm-routing",
-		.codec_name = "msm-stub-codec.1",
-		.codec_dai_name = "msm-stub-rx",
-		.no_pcm = 1,
-		.dpcm_playback = 1,
-		.id = MSM_BACKEND_DAI_PROXY_RX,
-		.ignore_pmdown_time = 1,
 		.ignore_suspend = 1,
 	},
 };
@@ -3425,14 +3396,6 @@ parse_mclk_freq:
 			/* update the internal speaker boost usage */
 			msm_anlg_cdc_update_int_spk_boost(false);
 		}
-	}
-
-	/* Check if voice probe done, defer otherwise */
-	ret = msm_voice_get_probe_status();
-	if (!ret) {
-		pr_debug("%s msm-pcm-voice probe status %d \n", __func__, ret);
-		ret = -EPROBE_DEFER;
-		goto err;
 	}
 
 	card = msm8952_populate_sndcard_dailinks(&pdev->dev,

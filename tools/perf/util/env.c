@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 #include "cpumap.h"
 #include "env.h"
-#include <linux/ctype.h>
+#include "sane_ctype.h"
 #include "util.h"
 #include <errno.h>
 #include <sys/utsname.h>

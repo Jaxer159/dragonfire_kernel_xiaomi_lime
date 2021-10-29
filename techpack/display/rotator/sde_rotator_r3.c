@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2015-2019, The Linux Foundation. All rights reserved.
  */
 
 #define pr_fmt(fmt)	"%s:%d: " fmt, __func__, __LINE__
@@ -60,12 +60,12 @@
 	do { \
 		SDEROT_DBG("SDEREG.W:[%s:0x%X] <= 0x%X\n", #off, (off),\
 				(u32)(data));\
-		writel_relaxed_no_log( \
+		writel_relaxed( \
 				(REGDMA_OP_REGWRITE | \
 				 ((off) & REGDMA_ADDR_OFFSET_MASK)), \
 				p); \
 		p += sizeof(u32); \
-		writel_relaxed_no_log(data, p); \
+		writel_relaxed(data, p); \
 		p += sizeof(u32); \
 	} while (0)
 
@@ -73,14 +73,14 @@
 	do { \
 		SDEROT_DBG("SDEREG.M:[%s:0x%X] <= 0x%X\n", #off, (off),\
 				(u32)(data));\
-		writel_relaxed_no_log( \
+		writel_relaxed( \
 				(REGDMA_OP_REGMODIFY | \
 				 ((off) & REGDMA_ADDR_OFFSET_MASK)), \
 				p); \
 		p += sizeof(u32); \
-		writel_relaxed_no_log(mask, p); \
+		writel_relaxed(mask, p); \
 		p += sizeof(u32); \
-		writel_relaxed_no_log(data, p); \
+		writel_relaxed(data, p); \
 		p += sizeof(u32); \
 	} while (0)
 
@@ -88,25 +88,25 @@
 	do { \
 		SDEROT_DBG("SDEREG.B:[%s:0x%X:0x%X]\n", #off, (off),\
 				(u32)(len));\
-		writel_relaxed_no_log( \
+		writel_relaxed( \
 				(REGDMA_OP_BLKWRITE_INC | \
 				 ((off) & REGDMA_ADDR_OFFSET_MASK)), \
 				p); \
 		p += sizeof(u32); \
-		writel_relaxed_no_log(len, p); \
+		writel_relaxed(len, p); \
 		p += sizeof(u32); \
 	} while (0)
 
 #define SDE_REGDMA_BLKWRITE_DATA(p, data) \
 	do { \
 		SDEROT_DBG("SDEREG.I:[:] <= 0x%X\n", (u32)(data));\
-		writel_relaxed_no_log(data, p); \
+		writel_relaxed(data, p); \
 		p += sizeof(u32); \
 	} while (0)
 
 #define SDE_REGDMA_READ(p, data) \
 	do { \
-		data = readl_relaxed_no_log(p); \
+		data = readl_relaxed(p); \
 		p += sizeof(u32); \
 	} while (0)
 
@@ -2046,7 +2046,7 @@ static u32 sde_hw_rotator_start_no_regdma(struct sde_hw_rotator_context *ctx,
 	/* Write all command stream to Rotator blocks */
 	/* Rotator will start right away after command stream finish writing */
 	while (mem_rdptr < wrptr) {
-		u32 op = REGDMA_OP_MASK & readl_relaxed_no_log(mem_rdptr);
+		u32 op = REGDMA_OP_MASK & readl_relaxed(mem_rdptr);
 
 		switch (op) {
 		case REGDMA_OP_NOP:
@@ -3486,9 +3486,7 @@ static int sde_rotator_hw_rev_init(struct sde_hw_rotator *rot)
 		rot->downscale_caps =
 			"LINEAR/1.5/2/4/8/16/32/64 TILE/1.5/2/4 TP10/1.5/2";
 	} else if (IS_SDE_MAJOR_MINOR_SAME(mdata->mdss_version,
-				SDE_MDP_HW_REV_630) ||
-				IS_SDE_MAJOR_MINOR_SAME(mdata->mdss_version,
-				SDE_MDP_HW_REV_6100)) {
+				SDE_MDP_HW_REV_630)) {
 		SDEROT_DBG("Sys cache inline rotation not supported\n");
 		set_bit(SDE_CAPS_PARTIALWR,  mdata->sde_caps_map);
 		set_bit(SDE_CAPS_HW_TIMESTAMP, mdata->sde_caps_map);

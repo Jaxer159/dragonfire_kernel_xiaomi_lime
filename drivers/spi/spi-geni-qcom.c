@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
  */
 
 
@@ -193,13 +193,6 @@ static inline void spi_geni_clk_conf(struct spi_geni_master *mas,
 	 * Ensure Clk config completes before return.
 	 */
 	mb();
-}
-
-int geni_spi_get_master_irq(struct spi_device *spi_slv)
-{
-	struct spi_geni_master *mas = spi_master_get_devdata(spi_slv->master);
-
-	return mas->irq;
 }
 
 static int get_spi_clk_cfg(u32 speed_hz, struct spi_geni_master *mas,
@@ -434,7 +427,7 @@ static struct msm_gpi_tre *setup_go_tre(int cmd, int cs, int rx_len, int flags,
 	if (cmd == SPI_RX_ONLY) {
 		eot = 0;
 		chain = 0;
-		eob = 1; /* For non Shared SPI case */
+		eob = 0;
 	} else {
 		eot = 0;
 		chain = 1;

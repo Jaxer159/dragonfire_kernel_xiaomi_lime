@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2015-2019, 2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2015-2019, 2020, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/of.h>
@@ -113,15 +113,10 @@ static struct snd_soc_ops msm_wcn_ops = {
 
 static int msm_fe_qos_prepare(struct snd_pcm_substream *substream)
 {
-	cpumask_t mask;
-
 	if (pm_qos_request_active(&substream->latency_pm_qos_req))
 		pm_qos_remove_request(&substream->latency_pm_qos_req);
 
-	cpumask_clear(&mask);
-	cpumask_set_cpu(1, &mask); /* affine to core 1 */
-	cpumask_set_cpu(2, &mask); /* affine to core 2 */
-	cpumask_copy(&substream->latency_pm_qos_req.cpus_affine, &mask);
+	atomic_set(&substream->latency_pm_qos_req.cpus_affine, BIT(1) | BIT(2));
 
 	substream->latency_pm_qos_req.type = PM_QOS_REQ_AFFINE_CORES;
 
@@ -275,7 +270,6 @@ static struct snd_soc_dai_link msm_ext_tasha_be_dai[] = {
 		.platform_name = "msm-pcm-routing",
 		.codec_name = "tasha_codec",
 		.codec_dai_name = "tasha_mix_rx1",
-		.dynamic_be = 1,
 		.no_pcm = 1,
 		.dpcm_playback = 1,
 		.id = MSM_BACKEND_DAI_SLIMBUS_0_RX,
@@ -293,7 +287,6 @@ static struct snd_soc_dai_link msm_ext_tasha_be_dai[] = {
 		.platform_name = "msm-pcm-routing",
 		.codec_name = "tasha_codec",
 		.codec_dai_name = "tasha_tx1",
-		.dynamic_be = 1,
 		.no_pcm = 1,
 		.dpcm_capture = 1,
 		.id = MSM_BACKEND_DAI_SLIMBUS_0_TX,
@@ -308,7 +301,6 @@ static struct snd_soc_dai_link msm_ext_tasha_be_dai[] = {
 		.platform_name = "msm-pcm-routing",
 		.codec_name = "tasha_codec",
 		.codec_dai_name = "tasha_mix_rx1",
-		.dynamic_be = 1,
 		.no_pcm = 1,
 		.dpcm_playback = 1,
 		.id = MSM_BACKEND_DAI_SLIMBUS_1_RX,
@@ -325,7 +317,6 @@ static struct snd_soc_dai_link msm_ext_tasha_be_dai[] = {
 		.platform_name = "msm-pcm-routing",
 		.codec_name = "tasha_codec",
 		.codec_dai_name = "tasha_tx3",
-		.dynamic_be = 1,
 		.no_pcm = 1,
 		.dpcm_capture = 1,
 		.id = MSM_BACKEND_DAI_SLIMBUS_1_TX,
@@ -340,7 +331,6 @@ static struct snd_soc_dai_link msm_ext_tasha_be_dai[] = {
 		.platform_name = "msm-pcm-routing",
 		.codec_name = "tasha_codec",
 		.codec_dai_name = "tasha_mix_rx1",
-		.dynamic_be = 1,
 		.no_pcm = 1,
 		.dpcm_playback = 1,
 		.id = MSM_BACKEND_DAI_SLIMBUS_3_RX,
@@ -357,7 +347,6 @@ static struct snd_soc_dai_link msm_ext_tasha_be_dai[] = {
 		.platform_name = "msm-pcm-routing",
 		.codec_name = "tasha_codec",
 		.codec_dai_name = "tasha_tx1",
-		.dynamic_be = 1,
 		.no_pcm = 1,
 		.dpcm_capture = 1,
 		.dpcm_playback = 1,
@@ -373,7 +362,6 @@ static struct snd_soc_dai_link msm_ext_tasha_be_dai[] = {
 		.platform_name = "msm-pcm-routing",
 		.codec_name = "tasha_codec",
 		.codec_dai_name = "tasha_mix_rx1",
-		.dynamic_be = 1,
 		.no_pcm = 1,
 		.dpcm_playback = 1,
 		.id = MSM_BACKEND_DAI_SLIMBUS_4_RX,
@@ -390,7 +378,6 @@ static struct snd_soc_dai_link msm_ext_tasha_be_dai[] = {
 		.platform_name = "msm-pcm-routing",
 		.codec_name = "tasha_codec",
 		.codec_dai_name = "tasha_rx3",
-		.dynamic_be = 1,
 		.no_pcm = 1,
 		.dpcm_playback = 1,
 		.id = MSM_BACKEND_DAI_SLIMBUS_5_RX,
@@ -408,7 +395,6 @@ static struct snd_soc_dai_link msm_ext_tasha_be_dai[] = {
 		.platform_name = "msm-pcm-routing",
 		.codec_name = "tasha_codec",
 		.codec_dai_name = "tasha_mad1",
-		.dynamic_be = 1,
 		.no_pcm = 1,
 		.dpcm_capture = 1,
 		.id = MSM_BACKEND_DAI_SLIMBUS_5_TX,
@@ -423,7 +409,6 @@ static struct snd_soc_dai_link msm_ext_tasha_be_dai[] = {
 		.platform_name = "msm-pcm-routing",
 		.codec_name = "tasha_codec",
 		.codec_dai_name = "tasha_rx4",
-		.dynamic_be = 1,
 		.no_pcm = 1,
 		.dpcm_playback = 1,
 		.id = MSM_BACKEND_DAI_SLIMBUS_6_RX,
@@ -443,7 +428,6 @@ static struct snd_soc_dai_link msm_ext_tavil_be_dai[] = {
 		.platform_name = "msm-pcm-routing",
 		.codec_name = "tavil_codec",
 		.codec_dai_name = "tavil_rx1",
-		.dynamic_be = 1,
 		.no_pcm = 1,
 		.dpcm_playback = 1,
 		.id = MSM_BACKEND_DAI_SLIMBUS_0_RX,
@@ -461,7 +445,6 @@ static struct snd_soc_dai_link msm_ext_tavil_be_dai[] = {
 		.platform_name = "msm-pcm-routing",
 		.codec_name = "tavil_codec",
 		.codec_dai_name = "tavil_tx1",
-		.dynamic_be = 1,
 		.no_pcm = 1,
 		.dpcm_capture = 1,
 		.id = MSM_BACKEND_DAI_SLIMBUS_0_TX,
@@ -476,7 +459,6 @@ static struct snd_soc_dai_link msm_ext_tavil_be_dai[] = {
 		.platform_name = "msm-pcm-routing",
 		.codec_name = "tavil_codec",
 		.codec_dai_name = "tavil_rx1",
-		.dynamic_be = 1,
 		.no_pcm = 1,
 		.dpcm_playback = 1,
 		.id = MSM_BACKEND_DAI_SLIMBUS_1_RX,
@@ -493,7 +475,6 @@ static struct snd_soc_dai_link msm_ext_tavil_be_dai[] = {
 		.platform_name = "msm-pcm-routing",
 		.codec_name = "tavil_codec",
 		.codec_dai_name = "tavil_tx3",
-		.dynamic_be = 1,
 		.no_pcm = 1,
 		.dpcm_capture = 1,
 		.id = MSM_BACKEND_DAI_SLIMBUS_1_TX,
@@ -508,7 +489,6 @@ static struct snd_soc_dai_link msm_ext_tavil_be_dai[] = {
 		.platform_name = "msm-pcm-routing",
 		.codec_name = "tavil_codec",
 		.codec_dai_name = "tavil_rx2",
-		.dynamic_be = 1,
 		.no_pcm = 1,
 		.dpcm_playback = 1,
 		.id = MSM_BACKEND_DAI_SLIMBUS_2_RX,
@@ -524,7 +504,6 @@ static struct snd_soc_dai_link msm_ext_tavil_be_dai[] = {
 		.platform_name = "msm-pcm-routing",
 		.codec_name = "tavil_codec",
 		.codec_dai_name = "tavil_rx1",
-		.dynamic_be = 1,
 		.no_pcm = 1,
 		.dpcm_playback = 1,
 		.id = MSM_BACKEND_DAI_SLIMBUS_3_RX,
@@ -541,7 +520,6 @@ static struct snd_soc_dai_link msm_ext_tavil_be_dai[] = {
 		.platform_name = "msm-pcm-routing",
 		.codec_name = "tavil_codec",
 		.codec_dai_name = "tavil_tx1",
-		.dynamic_be = 1,
 		.no_pcm = 1,
 		.dpcm_capture = 1,
 		.id = MSM_BACKEND_DAI_SLIMBUS_3_TX,
@@ -556,7 +534,6 @@ static struct snd_soc_dai_link msm_ext_tavil_be_dai[] = {
 		.platform_name = "msm-pcm-routing",
 		.codec_name = "tavil_codec",
 		.codec_dai_name = "tavil_rx1",
-		.dynamic_be = 1,
 		.no_pcm = 1,
 		.dpcm_playback = 1,
 		.id = MSM_BACKEND_DAI_SLIMBUS_4_RX,
@@ -591,7 +568,6 @@ static struct snd_soc_dai_link msm_ext_tavil_be_dai[] = {
 		.platform_name = "msm-pcm-routing",
 		.codec_name = "tavil_codec",
 		.codec_dai_name = "tavil_mad1",
-		.dynamic_be = 1,
 		.no_pcm = 1,
 		.dpcm_capture = 1,
 		.id = MSM_BACKEND_DAI_SLIMBUS_5_TX,
@@ -1818,7 +1794,6 @@ static struct snd_soc_dai_link msm_wcn_be_dai_links[] = {
 		 * supported usecase information
 		 */
 		.codec_dai_name = "btfm_bt_sco_a2dp_slim_rx",
-		.dynamic_be = 1,
 		.no_pcm = 1,
 		.dpcm_playback = 1,
 		.id = MSM_BACKEND_DAI_SLIMBUS_7_RX,
@@ -1835,7 +1810,6 @@ static struct snd_soc_dai_link msm_wcn_be_dai_links[] = {
 		.platform_name = "msm-pcm-routing",
 		.codec_name = "btfmslim_slave",
 		.codec_dai_name = "btfm_bt_sco_slim_tx",
-		.dynamic_be = 1,
 		.no_pcm = 1,
 		.dpcm_capture = 1,
 		.id = MSM_BACKEND_DAI_SLIMBUS_7_TX,
@@ -1850,7 +1824,6 @@ static struct snd_soc_dai_link msm_wcn_be_dai_links[] = {
 		.platform_name = "msm-pcm-routing",
 		.codec_name = "btfmslim_slave",
 		.codec_dai_name = "btfm_fm_slim_tx",
-		.dynamic_be = 1,
 		.no_pcm = 1,
 		.dpcm_capture = 1,
 		.id = MSM_BACKEND_DAI_SLIMBUS_8_TX,

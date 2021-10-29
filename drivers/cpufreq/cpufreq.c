@@ -60,8 +60,6 @@ static LIST_HEAD(cpufreq_governor_list);
 #define for_each_governor(__governor)				\
 	list_for_each_entry(__governor, &cpufreq_governor_list, governor_list)
 
-static char default_governor[CPUFREQ_NAME_LEN];
-
 /**
  * The "cpufreq driver" - the arch- or hardware-dependent low
  * level driver of CPUFreq support, and its spinlock. This lock
@@ -669,9 +667,14 @@ unsigned int cpuinfo_max_freq_cached;
 
 static bool should_use_cached_freq(int cpu)
 {
+	/* This is a safe check. may not be needed */
 	if (!cpuinfo_max_freq_cached)
 		return false;
 
+	/*
+	 * perfd already configure sched_lib_mask_force to
+	 * 0xf0 from user space. so re-using it.
+	 */
 	if (!(BIT(cpu) & sched_lib_mask_force))
 		return false;
 
@@ -723,9 +726,6 @@ static ssize_t store_##file_name					\
 {									\
 	int ret, temp;							\
 	struct cpufreq_policy new_policy;				\
-                                                                        \
-	if (&policy->object == &policy->min)				\
-		return count;						\
 									\
 	if (&policy->object == &policy->min)				\
 		return count;						\
@@ -2649,19 +2649,13 @@ EXPORT_SYMBOL(cpufreq_global_kobject);
 
 static int __init cpufreq_core_init(void)
 {
-	struct cpufreq_governor *gov = cpufreq_default_governor();
-
 	if (cpufreq_disabled())
 		return -ENODEV;
 
 	cpufreq_global_kobject = kobject_create_and_add("cpufreq", &cpu_subsys.dev_root->kobj);
 	BUG_ON(!cpufreq_global_kobject);
 
-	if (!strlen(default_governor))
-		strncpy(default_governor, gov->name, CPUFREQ_NAME_LEN);
-
 	return 0;
 }
 module_param(off, int, 0444);
-module_param_string(default_governor, default_governor, CPUFREQ_NAME_LEN, 0444);
 core_initcall(cpufreq_core_init);

@@ -70,7 +70,7 @@ static void evict_inode(struct inode *inode);
 
 static int incfs_setattr(struct dentry *dentry, struct iattr *ia);
 static ssize_t incfs_getxattr(struct dentry *d, const char *name,
-			void *value, size_t size, int flags);
+			void *value, size_t size);
 static ssize_t incfs_setxattr(struct dentry *d, const char *name,
 			const void *value, size_t size, int flags);
 static ssize_t incfs_listxattr(struct dentry *d, char *list, size_t size);
@@ -167,9 +167,9 @@ static const struct inode_operations incfs_file_inode_ops = {
 
 static int incfs_handler_getxattr(const struct xattr_handler *xh,
 				  struct dentry *d, struct inode *inode,
-				  const char *name, void *buffer, size_t size, int flags)
+				  const char *name, void *buffer, size_t size)
 {
-	return incfs_getxattr(d, name, buffer, size, flags);
+	return incfs_getxattr(d, name, buffer, size);
 }
 
 static int incfs_handler_setxattr(const struct xattr_handler *xh,
@@ -2082,7 +2082,7 @@ static int incfs_setattr(struct dentry *dentry, struct iattr *ia)
 }
 
 static ssize_t incfs_getxattr(struct dentry *d, const char *name,
-			void *value, size_t size, int flags)
+			void *value, size_t size)
 {
 	struct dentry_info *di = get_incfs_dentry(d);
 	struct mount_info *mi = get_mount_info(d->d_sb);

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2002,2007-2021, The Linux Foundation. All rights reserved.
- * Copyright (C) 2020 XiaoMi, Inc.
+ * Copyright (c) 2002,2007-2020, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -161,7 +160,7 @@ static long adreno_ioctl_preemption_counters_query(
 		levels_to_copy = gpudev->num_prio_levels;
 
 	if (copy_to_user((void __user *) (uintptr_t) read->counters,
-			adreno_dev->preempt.scratch.hostptr,
+			adreno_dev->preempt.counters.hostptr,
 			levels_to_copy * size_level))
 		return -EFAULT;
 
@@ -184,8 +183,11 @@ long adreno_ioctl_helper(struct kgsl_device_private *dev_priv,
 			break;
 	}
 
-	if (i == len)
+	if (i == len) {
+		dev_err(dev_priv->device->dev,
+			     "invalid ioctl code 0x%08X\n", cmd);
 		return -ENOIOCTLCMD;
+	}
 
 	if (_IOC_SIZE(cmds[i].cmd > sizeof(data))) {
 		dev_err_ratelimited(dev_priv->device->dev,

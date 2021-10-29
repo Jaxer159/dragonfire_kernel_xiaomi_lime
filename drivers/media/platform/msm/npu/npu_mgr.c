@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2018-2020, The Linux Foundation. All rights reserved.
  */
 
 /* -------------------------------------------------------------------------
@@ -610,7 +610,7 @@ static int npu_notifier_cb(struct notifier_block *this, unsigned long code,
 	struct npu_device *npu_dev = host_ctx->npu_dev;
 	uint32_t reg_val;
 
-	NPU_DBG("notifier code %d\n", code);
+	NPU_DBG("notifier code %lu\n", code);
 	switch (code) {
 	case SUBSYS_BEFORE_POWERUP:
 	{
@@ -1614,14 +1614,14 @@ int npu_process_kevent(struct npu_client *client, struct npu_kevent *kevt)
 		network = get_network_by_hdl(host_ctx,
 			client, kevt->reserved[0]);
 		if (!network) {
-			NPU_ERR("Can't find network %x\n", kevt->reserved[0]);
+			NPU_ERR("Can't find network %llx\n", kevt->reserved[0]);
 			ret = -EINVAL;
 			break;
 		}
 
 		cmd = npu_find_network_cmd(network, kevt->reserved[1]);
 		if (!cmd) {
-			NPU_ERR("can't find exec cmd with trans_id:%d\n",
+			NPU_ERR("can't find exec cmd with trans_id:%llx\n",
 				kevt->reserved[1]);
 			network_put(network);
 			ret = -EINVAL;
@@ -1661,7 +1661,6 @@ static int app_msg_proc(struct npu_host_ctx *host_ctx, uint32_t *msg)
 	struct npu_misc_cmd *misc_cmd = NULL;
 	int need_ctx_switch = 0;
 
-	memset(&kevt, 0, sizeof(kevt));
 	msg_id = msg[1];
 	switch (msg_id) {
 	case NPU_IPC_MSG_EXECUTE_DONE:

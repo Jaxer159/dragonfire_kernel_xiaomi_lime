@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
  */
 
 #include <asm/barrier.h>
@@ -73,11 +73,6 @@ int ipa3_enable_data_path(u32 clnt_hdl)
 				holb_cfg.tmr_val = IPA_HOLB_TMR_VAL;
 			else
 				holb_cfg.tmr_val = IPA_HOLB_TMR_VAL_4_5;
-		} else if (ipa3_ctx->ipa_hw_type == IPA_HW_v4_5 &&
-				ipa3_ctx->platform_type == IPA_PLAT_TYPE_APQ &&
-				ep->client == IPA_CLIENT_USB_CONS) {
-			holb_cfg.en = IPA_HOLB_TMR_EN;
-			holb_cfg.tmr_val = IPA_HOLB_TMR_VAL_4_5;
 		} else {
 			holb_cfg.en = IPA_HOLB_TMR_DIS;
 			holb_cfg.tmr_val = 0;
@@ -845,10 +840,10 @@ int ipa3_xdci_start(u32 clnt_hdl, u8 xferrscidx, bool xferrscidx_valid)
 		gsi_res = gsi_enable_flow_control_ee(ep->gsi_chan_hdl, 0,
 									&code);
 		if (gsi_res == GSI_STATUS_SUCCESS) {
-			IPADBG("flow control sussess gsi ch %d with code %d\n",
+			IPADBG("flow control sussess gsi ch %lu with code %d\n",
 					ep->gsi_chan_hdl, code);
 		} else {
-			IPADBG("failed to flow control gsi ch %d code %d\n",
+			IPADBG("failed to flow control gsi ch %lu code %d\n",
 					ep->gsi_chan_hdl, code);
 		}
 	}
@@ -1286,10 +1281,10 @@ int ipa3_start_stop_client_prod_gsi_chnl(enum ipa_client_type client,
 			result = gsi_enable_flow_control_ee(ep->gsi_chan_hdl,
 								0, &code);
 			if (result == GSI_STATUS_SUCCESS) {
-				IPADBG("flow control sussess ch %d code %d\n",
+				IPADBG("flow control sussess ch %lu code %d\n",
 						ep->gsi_chan_hdl, code);
 			} else {
-				IPADBG("failed to flow control ch %d code %d\n",
+				IPADBG("failed to flow control ch %lu code %d\n",
 						ep->gsi_chan_hdl, code);
 			}
 		} else
@@ -1680,7 +1675,7 @@ int ipa3_start_gsi_channel(u32 clnt_hdl)
 		res = ipa3_cfg_ep_holb(ipa3_get_ep_mapping(
 				IPA_CLIENT_MHI_PRIME_RMNET_CONS), &holb_cfg);
 		if (res) {
-			IPAERR("Disable HOLB failed ep:%lu\n",
+			IPAERR("Disable HOLB failed ep:%d\n",
 				ipa3_get_ep_mapping(
 					IPA_CLIENT_MHI_PRIME_RMNET_CONS));
 		}

@@ -40,7 +40,7 @@
 #include "time-utils.h"
 #include "units.h"
 
-#include <linux/ctype.h>
+#include "sane_ctype.h"
 
 /*
  * magic2 = "PERFILE2"

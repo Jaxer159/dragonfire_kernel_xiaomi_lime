@@ -51,6 +51,21 @@ config SGI_MBCS
 source "drivers/tty/serial/Kconfig"
 source "drivers/tty/serdev/Kconfig"
 
+config SRANDOM
+	tristate "Seed PRNG to replace urandom"
+	default n
+	---help---
+	  If you say Y here, The kernel support for
+	  Seed PRNG will be enabled.
+
+	  This driver will improve built-in random number generators
+	  useful for faster RNG to wipe SSDs.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called srandom.
+
+	  If unsure, say N.
+
 config TTY_PRINTK
 	tristate "TTY driver to output user messages via printk"
 	depends on EXPERT && TTY
@@ -538,27 +553,6 @@ config DEVPORT
 
 source "drivers/s390/char/Kconfig"
 
-config MSM_SMD_PKT
-	bool "Enable device interface for some SMD packet ports"
-	default n
-	depends on RPMSG_QCOM_SMD
-	help
-	 smd_pkt driver provides the interface for the userspace clients
-	 to communicate over smd via device nodes. This enable the
-	 usersapce clients to read and write to some smd packets channel
-	 for MSM chipset.
-
-config TILE_SROM
-	tristate "Character-device access via hypervisor to the Tilera SPI ROM"
-	depends on TILE
-	default y
-	help
-	  This device provides character-level read-write access
-	  to the SROM, typically via the "0", "1", and "2" devices
-	  in /dev/srom/.  The Tilera hypervisor makes the flash
-	  device appear much like a simple EEPROM, and knows
-	  how to partition a single ROM for multiple purposes.
-
 source "drivers/char/xillybus/Kconfig"
 source "drivers/char/diag/Kconfig"
 
@@ -623,8 +617,6 @@ config RB5_GPIOS_ENABLE
 	  The pins are shared between Kona GPIOs and QCA concurrency
 	  signals, GPIO 60 is default set to low to connect GPIOs
 	  140/145,116/117 to mezzanine connectors.
-
-source "drivers/char/srandom/Kconfig"
 
 endmenu
 

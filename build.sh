@@ -38,7 +38,35 @@ if [ ! -d libufdt ]; then
     rm utils.tar.gz
 fi
 
-#BUILD KERNEL
+CHATID="-1001798647551"
+token=$TELEGRAM_TOKEN
+DATE=$(TZ=Asia/Moscow date +"%F")
+COMMIT_HEAD=$(git log --oneline -1)
+KERVER=$(make kernelversion)
+KBUILD_COMPILER_STRING="proton-clang"
+CI_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
+tg_post_msg() {
+	curl -s -X POST "$BOT_MSG_URL" -d chat_id="-1001798647551" \
+	-d "disable_web_page_preview=true" \
+	-d "parse_mode=html" \
+	-d text="$1"
+
+}
+
+tg_post_build() {
+	#Post MD5Checksum alongwith for easeness
+	MD5CHECK=$(md5sum "$1" | cut -d' ' -f1)
+
+	#Show the Checksum alongwith caption
+	curl --progress-bar -F document=@"$1" "$BOT_BUILD_URL" \
+	-F chat_id="$2"  \
+	-F "disable_web_page_preview=true" \
+	-F "parse_mode=html" \
+	-F caption="$3 | <code>Build Number : </code><b>$DRONE_BUILD_NUMBER</b>"  
+}
+
+tg_post_msg "<b>🔨 CI Build Triggered</b>%0A<b>Kernel Version : </b><code>$KERVER</code>%0A<b>Date : </b><code>$(TZ=Asia/Moscow date)</code>%0A<b>Compiler Used : </b><code>$KBUILD_COMPILER_STRING</code>%0a<b>Branch : </b><code>$CI_BRANCH</code>" "$CHATID"
 
 SECONDS=0
 
@@ -84,6 +112,7 @@ make O=out ARCH=arm64 $CONFIG
 make	-j`nproc --all` O=out ARCH=arm64 CC=clang LD=ld.lld AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip TARGET_PRODUCT=bengal CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- Image.gz-dtb dtbo.img
 
 if ! [ -a $KERN_IMG ]; then
+    tg_post_msg "<b>❌ Build failed to compile after $((DIFF / 60)) minute(s) and $((DIFF % 60)) seconds</b>" "$CHATID"
     echo -e "\nKernel Compilation failed! Fix the errors!\n"
 fi
 
@@ -103,3 +132,10 @@ echo -e "\n(i)          Completed build $((SECONDS / 60)) minute(s) and $((SECON
 echo -e "\n             Flashable zip generated under $ZIP_DIR.\n"
 cd ..
 # Build end
+# Sign the zip before sending it to Telegram
+KERNEL="Dragonfire"
+DEVICE="lime"
+VER="1.0"
+KERNELNAME="${KERNEL}-${DEVICE}-${VER}"
+ZIPNAME="AnyKernel3/${KERNELNAME}.zip"
+tg_post_build "$ZIPNAME" "$CHATID" "✅ Build took : $((DIFF / 60)) minute(s) and $((DIFF % 60)) second(s)"

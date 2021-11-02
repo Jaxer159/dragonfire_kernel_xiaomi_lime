@@ -38,6 +38,9 @@ if [ ! -d libufdt ]; then
     rm utils.tar.gz
 fi
 
+export BOT_MSG_URL="https://api.telegram.org/bot$token/sendMessage"
+export BOT_BUILD_URL="https://api.telegram.org/bot$token/sendDocument"
+
 CHATID="-1001798647551"
 token=$TELEGRAM_TOKEN
 DATE=$(TZ=Asia/Moscow date +"%F")

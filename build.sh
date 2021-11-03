@@ -66,7 +66,7 @@ tg_post_build() {
 	-F chat_id="$2"  \
 	-F "disable_web_page_preview=true" \
 	-F "parse_mode=html" \
-	-F caption="$3 | <code>Build Number : </code><b>$DRONE_BUILD_NUMBER</b>"  
+	-F caption="$3"  
 }
 
 tg_post_msg "<b>🔨 CI Build Triggered</b>%0A<b>Kernel Version : </b><code>$KERVER</code>%0A<b>Date : </b><code>$(TZ=Asia/Moscow date)</code>%0A<b>Compiler Used : </b><code>$KBUILD_COMPILER_STRING</code>%0a<b>Branch : </b><code>$CI_BRANCH</code>" "$CHATID"
@@ -115,7 +115,7 @@ make O=out ARCH=arm64 $CONFIG
 make	-j`nproc --all` O=out ARCH=arm64 CC=clang LD=ld.lld AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip TARGET_PRODUCT=bengal CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- Image.gz-dtb dtbo.img
 
 if ! [ -a $KERN_IMG ]; then
-    tg_post_msg "<b>❌ Build failed to compile after $((DIFF / 60)) minute(s) and $((DIFF % 60)) seconds</b>" "$CHATID"
+    tg_post_msg "<b>❌ Build failed to compile after $((SECONDS / 60)) minute(s) and $((SECONDS % 60)) seconds</b>" "$CHATID"
     echo -e "\nKernel Compilation failed! Fix the errors!\n"
 fi
 

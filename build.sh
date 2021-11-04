@@ -38,7 +38,7 @@ if [ ! -d libufdt ]; then
     rm utils.tar.gz
 fi
 
-CHATID="-1001798647551"
+CHATID="-1001583404909"
 token=$TELEGRAM_TOKEN
 DATE=$(TZ=Asia/Moscow date +"%F")
 COMMIT_HEAD=$(git log --oneline -1)
@@ -50,7 +50,7 @@ export BOT_MSG_URL="https://api.telegram.org/bot$token/sendMessage"
 export BOT_BUILD_URL="https://api.telegram.org/bot$token/sendDocument"
 
 tg_post_msg() {
-	curl -s -X POST "$BOT_MSG_URL" -d chat_id="-1001798647551" \
+	curl -s -X POST "$BOT_MSG_URL" -d chat_id="-1001583404909" \
 	-d "disable_web_page_preview=true" \
 	-d "parse_mode=html" \
 	-d text="$1"

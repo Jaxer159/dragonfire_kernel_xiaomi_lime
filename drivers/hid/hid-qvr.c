@@ -609,10 +609,8 @@ static int qvr_external_sensor_raw_event(struct hid_device *hid,
 		else if (data[0] == 2 && data[1] == 1) { /*calibration data*/
 			sensor->calib_data_pkt = data;
 			sensor->calib_data_recv = 1;
-		} else if (data[0] == 2 && data[1] == 4) { /*calibration ack*/
+		} else if (data[0] == 2 && data[1] == 4) /*calibration ack*/
 			sensor->ext_ack = 1;
-			wake_up(&wq);
-		}
 
 	}
 	return ret;
@@ -620,9 +618,6 @@ static int qvr_external_sensor_raw_event(struct hid_device *hid,
 
 static void qvr_external_sensor_device_remove(struct hid_device *hdev)
 {
-	struct qvr_external_sensor *sensor = &qvr_external_sensor;
-
-	sensor->device = NULL;
 	hid_hw_stop(hdev);
 }
 
@@ -671,14 +666,14 @@ static int __init qvr_external_sensor_init(void)
 
 	ret = alloc_chrdev_region(&sensor->dev_no, 0, 1, "qvr_external_sensor");
 	if (ret < 0) {
-		pr_err("%s: alloc_chrdev_region failed\n", __func__);
+		pr_err("%s: alloc_chrdev_region failed\n");
 		return ret;
 	}
 	cdev_init(&sensor->cdev, &qvr_external_sensor_ops);
 	ret = cdev_add(&sensor->cdev, sensor->dev_no, 1);
 
 	if (ret < 0) {
-		pr_err("%s: cdev_add failed\n", __func__);
+		pr_err("%s: cdev_add failed\n");
 		return ret;
 	}
 	sensor->class = class_create(THIS_MODULE, "qvr_external_sensor");

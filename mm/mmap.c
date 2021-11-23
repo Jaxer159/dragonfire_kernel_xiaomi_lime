@@ -204,18 +204,15 @@ static int do_brk_flags(unsigned long addr, unsigned long request, unsigned long
 SYSCALL_DEFINE1(brk, unsigned long, brk)
 {
 	unsigned long retval;
-	unsigned long newbrk, oldbrk, origbrk;
+	unsigned long newbrk, oldbrk;
 	struct mm_struct *mm = current->mm;
 	struct vm_area_struct *next;
 	unsigned long min_brk;
 	bool populate;
-	bool downgraded = false;
 	LIST_HEAD(uf);
 
 	if (down_write_killable(&mm->mmap_sem))
 		return -EINTR;
-
-	origbrk = mm->brk;
 
 #ifdef CONFIG_COMPAT_BRK
 	/*
@@ -245,32 +242,14 @@ SYSCALL_DEFINE1(brk, unsigned long, brk)
 
 	newbrk = PAGE_ALIGN(brk);
 	oldbrk = PAGE_ALIGN(mm->brk);
-	if (oldbrk == newbrk) {
-		mm->brk = brk;
-		goto success;
-	}
+	if (oldbrk == newbrk)
+		goto set_brk;
 
-	/*
-	 * Always allow shrinking brk.
-	 * __do_munmap() may downgrade mmap_sem to read.
-	 */
+	/* Always allow shrinking brk. */
 	if (brk <= mm->brk) {
-		int ret;
-
-		/*
-		 * mm->brk must to be protected by write mmap_sem so update it
-		 * before downgrading mmap_sem. When __do_munmap() fails,
-		 * mm->brk will be restored from origbrk.
-		 */
-		mm->brk = brk;
-		ret = __do_munmap(mm, newbrk, oldbrk-newbrk, &uf, true);
-		if (ret < 0) {
-			mm->brk = origbrk;
-			goto out;
-		} else if (ret == 1) {
-			downgraded = true;
-		}
-		goto success;
+		if (!do_munmap(mm, newbrk, oldbrk-newbrk, &uf))
+			goto set_brk;
+		goto out;
 	}
 
 	/* Check against existing mmap mappings. */
@@ -281,21 +260,18 @@ SYSCALL_DEFINE1(brk, unsigned long, brk)
 	/* Ok, looks good - let it rip. */
 	if (do_brk_flags(oldbrk, newbrk-oldbrk, 0, &uf) < 0)
 		goto out;
-	mm->brk = brk;
 
-success:
+set_brk:
+	mm->brk = brk;
 	populate = newbrk > oldbrk && (mm->def_flags & VM_LOCKED) != 0;
-	if (downgraded)
-		up_read(&mm->mmap_sem);
-	else
-		up_write(&mm->mmap_sem);
+	up_write(&mm->mmap_sem);
 	userfaultfd_unmap_complete(mm, &uf);
 	if (populate)
 		mm_populate(oldbrk, newbrk - oldbrk);
 	return brk;
 
 out:
-	retval = origbrk;
+	retval = mm->brk;
 	up_write(&mm->mmap_sem);
 	return retval;
 }
@@ -1473,9 +1449,6 @@ unsigned long do_mmap(struct file *file, unsigned long addr,
 
 	if (!len)
 		return -EINVAL;
-
-	while (file && (file->f_mode & FMODE_NONMAPPABLE))
-		file = file->f_op->get_lower_file(file);
 
 	/*
 	 * Does the application expect PROT_READ to imply PROT_EXEC?
@@ -2830,8 +2803,8 @@ int split_vma(struct mm_struct *mm, struct vm_area_struct *vma,
  * work.  This now handles partial unmappings.
  * Jeremy Fitzhardinge <jeremy@goop.org>
  */
-int __do_munmap(struct mm_struct *mm, unsigned long start, size_t len,
-		struct list_head *uf, bool downgrade)
+int do_munmap(struct mm_struct *mm, unsigned long start, size_t len,
+	      struct list_head *uf)
 {
 	unsigned long end;
 	struct vm_area_struct *vma, *prev, *last;
@@ -2913,39 +2886,26 @@ int __do_munmap(struct mm_struct *mm, unsigned long start, size_t len,
 				mm->locked_vm -= vma_pages(tmp);
 				munlock_vma_pages_all(tmp);
 			}
-
 			tmp = tmp->vm_next;
 		}
 	}
 
-	/* Detach vmas from rbtree */
-	detach_vmas_to_be_unmapped(mm, vma, prev, end);
-
 	/*
-	 * mpx unmap needs to be called with mmap_sem held for write.
-	 * It is safe to call it before unmap_region().
+	 * Remove the vma's, and unmap the actual pages
 	 */
-	arch_unmap(mm, vma, start, end);
-
-	if (downgrade)
-		downgrade_write(&mm->mmap_sem);
-
+	detach_vmas_to_be_unmapped(mm, vma, prev, end);
 	unmap_region(mm, vma, prev, start, end);
+
+	arch_unmap(mm, vma, start, end);
 
 	/* Fix up all other VM information */
 	remove_vma_list(mm, vma);
 
-	return downgrade ? 1 : 0;
+	return 0;
 }
 EXPORT_SYMBOL(do_munmap);
 
-int do_munmap(struct mm_struct *mm, unsigned long start, size_t len,
-	      struct list_head *uf)
-{
-	return __do_munmap(mm, start, len, uf, false);
-}
-
-static int __vm_munmap(unsigned long start, size_t len, bool downgrade)
+int vm_munmap(unsigned long start, size_t len)
 {
 	int ret;
 	struct mm_struct *mm = current->mm;
@@ -2954,25 +2914,10 @@ static int __vm_munmap(unsigned long start, size_t len, bool downgrade)
 	if (down_write_killable(&mm->mmap_sem))
 		return -EINTR;
 
-	ret = __do_munmap(mm, start, len, &uf, downgrade);
-	/*
-	 * Returning 1 indicates mmap_sem is downgraded.
-	 * But 1 is not legal return value of vm_munmap() and munmap(), reset
-	 * it to 0 before return.
-	 */
-	if (ret == 1) {
-		up_read(&mm->mmap_sem);
-		ret = 0;
-	} else
-		up_write(&mm->mmap_sem);
-
+	ret = do_munmap(mm, start, len, &uf);
+	up_write(&mm->mmap_sem);
 	userfaultfd_unmap_complete(mm, &uf);
 	return ret;
-}
-
-int vm_munmap(unsigned long start, size_t len)
-{
-	return __vm_munmap(start, len, false);
 }
 EXPORT_SYMBOL(vm_munmap);
 
@@ -2980,7 +2925,7 @@ SYSCALL_DEFINE2(munmap, unsigned long, addr, size_t, len)
 {
 	addr = untagged_addr(addr);
 	profile_munmap(addr);
-	return __vm_munmap(addr, len, true);
+	return vm_munmap(addr, len);
 }
 
 

@@ -717,14 +717,6 @@ int cnss_idle_restart(struct device *dev)
 	ret = wait_for_completion_timeout(&plat_priv->power_up_complete,
 					  msecs_to_jiffies((timeout << 1) +
 							   WLAN_WD_TIMEOUT_MS));
-	if (plat_priv->power_up_error) {
-		ret = plat_priv->power_up_error;
-		clear_bit(CNSS_DRIVER_IDLE_RESTART, &plat_priv->driver_state);
-		cnss_pr_dbg("Power up error:%d, exiting\n",
-			    plat_priv->power_up_error);
-		goto out;
-	}
-
 	if (!ret) {
 		cnss_pr_err("Timeout waiting for idle restart to complete\n");
 		ret = -ETIMEDOUT;
@@ -1711,7 +1703,7 @@ int cnss_va_to_pa(struct device *dev, size_t size, void *va, dma_addr_t dma,
 
 	ret = dma_get_sgtable_attrs(dev, &sgt, va, dma, size, attrs);
 	if (ret) {
-		cnss_pr_err("Failed to get sgtable for va: 0x%pK, dma: %pa, size: 0x%zx, attrs: 0x%lx\n",
+		cnss_pr_err("Failed to get sgtable for va: 0x%pK, dma: %pa, size: 0x%zx, attrs: 0x%x\n",
 			    va, &dma, size, attrs);
 		return -EINVAL;
 	}
@@ -2482,7 +2474,7 @@ static int cnss_reboot_notifier(struct notifier_block *nb,
 	del_timer(&plat_priv->fw_boot_timer);
 	complete_all(&plat_priv->power_up_complete);
 	complete_all(&plat_priv->cal_complete);
-	cnss_pr_dbg("Reboot is in progress with action %lu\n", action);
+	cnss_pr_dbg("Reboot is in progress with action %d\n", action);
 
 	return NOTIFY_DONE;
 }

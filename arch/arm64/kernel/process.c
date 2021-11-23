@@ -64,7 +64,7 @@
 
 #ifdef CONFIG_STACKPROTECTOR
 #include <linux/stackprotector.h>
-unsigned long __stack_chk_guard __ro_after_init;
+unsigned long __stack_chk_guard __read_mostly;
 EXPORT_SYMBOL(__stack_chk_guard);
 #endif
 
@@ -306,10 +306,13 @@ void __show_regs(struct pt_regs *regs)
 	i = top_reg;
 
 	while (i >= 0) {
-		printk("x%-2d: %016llx", i, regs->regs[i]);
+		printk("x%-2d: %016llx ", i, regs->regs[i]);
+		i--;
 
-		while (i-- % 3)
-			pr_cont(" x%-2d: %016llx", i, regs->regs[i]);
+		if (i % 2 == 0) {
+			pr_cont("x%-2d: %016llx ", i, regs->regs[i]);
+			i--;
+		}
 
 		pr_cont("\n");
 	}

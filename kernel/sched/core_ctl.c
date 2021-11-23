@@ -1250,7 +1250,6 @@ static int core_ctl_isolation_dead_cpu(unsigned int cpu)
 
 /* ============================ init code ============================== */
 
-#if 0
 static struct cluster_data *find_cluster_by_first_cpu(unsigned int first_cpu)
 {
 	unsigned int i;
@@ -1263,8 +1262,6 @@ static struct cluster_data *find_cluster_by_first_cpu(unsigned int first_cpu)
 	return NULL;
 }
 
-#endif
-#if 0
 static int cluster_init(const struct cpumask *mask)
 {
 	struct device *dev;
@@ -1335,8 +1332,6 @@ static int cluster_init(const struct cpumask *mask)
 	return kobject_add(&cluster->kobj, &dev->kobj, "core_ctl");
 }
 
-#endif
-#if 0
 static int __init core_ctl_init(void)
 {
 	struct sched_cluster *cluster;
@@ -1361,4 +1356,3 @@ static int __init core_ctl_init(void)
 }
 
 late_initcall(core_ctl_init);
-#endif

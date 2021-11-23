@@ -1342,8 +1342,11 @@ void sdhci_msm_enter_dbg_mode(struct sdhci_host *host)
 	struct sdhci_msm_host *msm_host = pltfm_host->priv;
 	struct platform_device *pdev = msm_host->pdev;
 	u32 enable_dbg_feature = 0;
+	u32 minor;
 
-	if (msm_host->minor < 2 || msm_host->debug_mode_enabled)
+	minor = IPCAT_MINOR_MASK(readl_relaxed(host->ioaddr +
+				SDCC_IP_CATALOG));
+	if (minor < 2 || msm_host->debug_mode_enabled)
 		return;
 	if (!(host->quirks2 & SDHCI_QUIRK2_USE_DBG_FEATURE))
 		return;
@@ -1357,7 +1360,7 @@ void sdhci_msm_enter_dbg_mode(struct sdhci_host *host)
 			SDCC_TESTBUS_CONFIG) | TESTBUS_EN),
 			host->ioaddr + SDCC_TESTBUS_CONFIG);
 
-	if (msm_host->minor >= 2)
+	if (minor >= 2)
 		enable_dbg_feature |= FSM_HISTORY |
 			AUTO_RECOVERY_DISABLE |
 			MM_TRIGGER_DISABLE |
@@ -1384,8 +1387,11 @@ void sdhci_msm_exit_dbg_mode(struct sdhci_host *host)
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	struct sdhci_msm_host *msm_host = pltfm_host->priv;
 	struct platform_device *pdev = msm_host->pdev;
+	u32 minor;
 
-	if (msm_host->minor  < 2 || !msm_host->debug_mode_enabled)
+	minor = IPCAT_MINOR_MASK(readl_relaxed(host->ioaddr +
+				SDCC_IP_CATALOG));
+	if (minor < 2 || !msm_host->debug_mode_enabled)
 		return;
 	if (!(host->quirks2 & SDHCI_QUIRK2_USE_DBG_FEATURE))
 		return;
@@ -4647,8 +4653,8 @@ void sdhci_msm_pm_qos_irq_init(struct sdhci_host *host)
 		(msm_host->pm_qos_irq.req.type != PM_QOS_REQ_ALL_CORES))
 		set_affine_irq(msm_host, host);
 	else
-		atomic_set(&msm_host->pm_qos_irq.req.cpus_affine,
-			*cpumask_bits(cpumask_of(msm_host->pdata->pm_qos_data.irq_cpu)));
+		cpumask_copy(&msm_host->pm_qos_irq.req.cpus_affine,
+			cpumask_of(msm_host->pdata->pm_qos_data.irq_cpu));
 
 	sdhci_msm_pm_qos_wq_init(msm_host);
 
@@ -4702,8 +4708,8 @@ static ssize_t sdhci_msm_pm_qos_group_show(struct device *dev,
 	for (i = 0; i < nr_groups; i++) {
 		group = &msm_host->pm_qos[i];
 		offset += snprintf(&buf[offset], PAGE_SIZE,
-			"Group #%d PM QoS: enabled=%d, counter=%d, latency=%d\n",
-			i,
+			"Group #%d (mask=0x%lx) PM QoS: enabled=%d, counter=%d, latency=%d\n",
+			i, group->req.cpus_affine.bits[0],
 			msm_host->pm_qos_group_enable,
 			atomic_read(&group->counter),
 			group->latency);
@@ -4862,14 +4868,15 @@ void sdhci_msm_pm_qos_cpu_init(struct sdhci_host *host,
 			sdhci_msm_pm_qos_cpu_unvote_work);
 		atomic_set(&group->counter, 0);
 		group->req.type = PM_QOS_REQ_AFFINE_CORES;
-		atomic_set(&group->req.cpus_affine,
-			*cpumask_bits(&msm_host->pdata->pm_qos_data.cpu_group_map.mask[i]));
+		cpumask_copy(&group->req.cpus_affine,
+			&msm_host->pdata->pm_qos_data.cpu_group_map.mask[i]);
 		/* We set default latency here for all pm_qos cpu groups. */
 		group->latency = PM_QOS_DEFAULT_VALUE;
 		pm_qos_add_request(&group->req, PM_QOS_CPU_DMA_LATENCY,
 			group->latency);
-		pr_info("%s (): voted for group #%d latency=%d\n",
+		pr_info("%s (): voted for group #%d (mask=0x%lx) latency=%d\n",
 			__func__, i,
+			group->req.cpus_affine.bits[0],
 			group->latency);
 	}
 	msm_host->pm_qos_prev_cpu = -1;
@@ -5286,6 +5293,7 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 	void __iomem *tlmm_mem;
 	unsigned long flags;
 	bool force_probe;
+	u32 minor;
 
 	pr_debug("%s: Enter %s\n", dev_name(&pdev->dev), __func__);
 	msm_host = devm_kzalloc(&pdev->dev, sizeof(struct sdhci_msm_host),
@@ -5586,7 +5594,7 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 	if (host->quirks2 & SDHCI_QUIRK2_ALWAYS_USE_BASE_CLOCK)
 		host->quirks2 |= SDHCI_QUIRK2_DIVIDE_TOUT_BY_4;
 
-	msm_host->minor = IPCAT_MINOR_MASK(readl_relaxed(host->ioaddr +
+	minor = IPCAT_MINOR_MASK(readl_relaxed(host->ioaddr +
 				SDCC_IP_CATALOG));
 
 	host_version = readw_relaxed((host->ioaddr + SDHCI_HOST_VERSION));
@@ -5788,7 +5796,7 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 		device_remove_file(&pdev->dev, &msm_host->auto_cmd21_attr);
 	}
 
-	if (msm_host->minor >= 2) {
+	if (minor >= 2) {
 		msm_host->mask_and_match.show = show_mask_and_match;
 		msm_host->mask_and_match.store = store_mask_and_match;
 		sysfs_attr_init(&msm_host->mask_and_match.attr);

@@ -273,10 +273,10 @@
 				compatible = "android,fstab";
 				vendor {
 					compatible = "android,vendor";
-					dev = "/dev/block/platform/soc/4804000.ufshc/by-name/vendor";
+					dev = "/dev/block/platform/soc/4744000.sdhci/by-name/vendor";
 					type = "ext4";
 					mnt_flags = "ro,barrier=1,discard";
-					fsmgr_flags = "wait";
+					fsmgr_flags = [77 61 69 74 00 00 00 00 00];
 					status = "ok";
 				};
 			};
@@ -413,7 +413,7 @@
 		};
 
 		disp_rdump_memory: disp_rdump_region@5c000000 {
-			reg = <0x0 0x5d000000 0x0 0x00f00000>;
+			reg = <0x0 0x5c000000 0x0 0x00f00000>;
 			label = "disp_rdump_region";
 		};
 
@@ -430,6 +430,13 @@
 			size = <0 0x800000>;
 		};
 
+		dump_mem: mem_dump_region {
+			compatible = "shared-dma-pool";
+			alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
+			reusable;
+			size = <0 0x800000>;
+		};
+
 		/* global autoconfigured region for contiguous allocations */
 		linux,cma {
 			compatible = "shared-dma-pool";
@@ -442,7 +449,7 @@
 	};
 
 	chosen {
-		bootargs = "rcu_nocbs=0-7 kpti=off noirqdebug quiet cgroup_disable=pressure";
+		bootargs = "rcupdate.rcu_expedited=1 rcu_nocbs=0-7 kpti=off";
 	};
 
 	soc: soc { };
@@ -475,7 +482,6 @@
 		clock-names = "core_clk";
 
 		qcom,coresight-jtagmm-cpu = <&CPU0>;
-		status = "disabled";
 	};
 
 	jtag_mm1: jtagmm@9140000 {
@@ -487,7 +493,6 @@
 		clock-names = "core_clk";
 
 		qcom,coresight-jtagmm-cpu = <&CPU1>;
-		status = "disabled";
 	};
 
 	jtag_mm2: jtagmm@9240000 {
@@ -499,7 +504,6 @@
 		clock-names = "core_clk";
 
 		qcom,coresight-jtagmm-cpu = <&CPU2>;
-		status = "disabled";
 	};
 
 	jtag_mm3: jtagmm@9340000 {
@@ -511,7 +515,6 @@
 		clock-names = "core_clk";
 
 		qcom,coresight-jtagmm-cpu = <&CPU3>;
-		status = "disabled";
 	};
 
 	jtag_mm4: jtagmm@9440000 {
@@ -523,7 +526,6 @@
 		clock-names = "core_clk";
 
 		qcom,coresight-jtagmm-cpu = <&CPU4>;
-		status = "disabled";
 	};
 
 	jtag_mm5: jtagmm@9540000 {
@@ -535,7 +537,6 @@
 		clock-names = "core_clk";
 
 		qcom,coresight-jtagmm-cpu = <&CPU5>;
-		status = "disabled";
 	};
 
 	jtag_mm6: jtagmm@9640000 {
@@ -547,7 +548,6 @@
 		clock-names = "core_clk";
 
 		qcom,coresight-jtagmm-cpu = <&CPU6>;
-		status = "disabled";
 	};
 
 	jtag_mm7: jtagmm@9740000 {
@@ -559,7 +559,6 @@
 		clock-names = "core_clk";
 
 		qcom,coresight-jtagmm-cpu = <&CPU7>;
-		status = "disabled";
 	};
 
 	qcom,memshare {
@@ -1149,7 +1148,7 @@
 
 	mem_dump {
 		compatible = "qcom,mem-dump";
-		status = "disabled";
+		memory-region = <&dump_mem>;
 
 		c0_context {
 			qcom,dump-size = <0x800>;
@@ -1712,29 +1711,6 @@
 		qcom,no-accumulative-counter;
 		qcom,max-lut-entries = <12>;
 		#freq-domain-cells = <2>;
-
-		qcom,cpufreq-table-0 =
-			< 300000>,
-			< 614400>,
-			< 864000>,
-			<1017600>,
-			<1305600>,
-			<1420800>,
-			<1612800>,
-			<1804800>,
-			<1804800>;
-
-		qcom,cpufreq-table-1 =
-			< 300000>,
-			< 652800>,
-			< 902400>,
-			<1056000>,
-			<1401600>,
-			<1536000>,
-			<1612800>,
-			<1804800>,
-			<2016000>,
-			<2016000>;
 	};
 
 	tcsr_mutex_block: syscon@00340000 {
@@ -2684,6 +2660,7 @@
 #include "bengal-gdsc.dtsi"
 #include "bengal-usb.dtsi"
 #include "bengal-ion.dtsi"
+#include "bengal-coresight.dtsi"
 #include "bengal-bus.dtsi"
 #include "bengal-vidc.dtsi"
 #include "pmi632.dtsi"

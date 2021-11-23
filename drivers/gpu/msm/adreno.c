@@ -33,7 +33,7 @@ static unsigned int counter_delta(struct kgsl_device *device,
 
 static struct devfreq_msm_adreno_tz_data adreno_tz_data = {
 	.bus = {
-		.max = 1200,
+		.max = 350,
 		.floating = true,
 	},
 	.device_id = KGSL_DEVICE_3D0,
@@ -1057,20 +1057,20 @@ static int adreno_of_get_power(struct adreno_device *adreno_dev,
 	/* get pm-qos-active-latency, set it to default if not found */
 	if (of_property_read_u32(node, "qcom,pm-qos-active-latency",
 		&device->pwrctrl.pm_qos_active_latency))
-		device->pwrctrl.pm_qos_active_latency = 1000;
+		device->pwrctrl.pm_qos_active_latency = 501;
 
 	/* get pm-qos-cpu-mask-latency, set it to default if not found */
 	if (of_property_read_u32(node, "qcom,l2pc-cpu-mask-latency",
 		&device->pwrctrl.pm_qos_cpu_mask_latency))
-		device->pwrctrl.pm_qos_cpu_mask_latency = 1000;
+		device->pwrctrl.pm_qos_cpu_mask_latency = 501;
 
 	/* get pm-qos-wakeup-latency, set it to default if not found */
 	if (of_property_read_u32(node, "qcom,pm-qos-wakeup-latency",
 		&device->pwrctrl.pm_qos_wakeup_latency))
-		device->pwrctrl.pm_qos_wakeup_latency = 100;
+		device->pwrctrl.pm_qos_wakeup_latency = 101;
 
 	if (of_property_read_u32(node, "qcom,idle-timeout", &timeout))
-		timeout = 64;
+		timeout = 58;
 
 	device->pwrctrl.interval_timeout = msecs_to_jiffies(timeout);
 
@@ -3252,11 +3252,7 @@ int adreno_gmu_fenced_write(struct adreno_device *adreno_dev,
 			break;
 
 		/* Wait a small amount of time before trying again */
-		if (in_atomic())
-			udelay(GMU_CORE_WAKEUP_DELAY_US);
-		else
-			usleep_range(GMU_CORE_WAKEUP_DELAY_US,
-				     3 * GMU_CORE_WAKEUP_DELAY_US);
+		udelay(GMU_CORE_WAKEUP_DELAY_US);
 
 		/* Try to write the fenced register again */
 		adreno_writereg(adreno_dev, offset, val);
@@ -3932,7 +3928,6 @@ static struct platform_driver adreno_platform_driver = {
 		.name = DEVICE_3D_NAME,
 		.pm = &kgsl_pm_ops,
 		.of_match_table = adreno_match_table,
-		.probe_type = PROBE_PREFER_ASYNCHRONOUS,
 	}
 };
 

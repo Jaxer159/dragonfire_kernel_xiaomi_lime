@@ -81,7 +81,7 @@ struct hif_bus_ops {
 	int (*hif_addr_in_boundary)(struct hif_softc *scn, uint32_t offset);
 	bool (*hif_needs_bmi)(struct hif_softc *hif_sc);
 	void (*hif_config_irq_affinity)(struct hif_softc *hif_sc);
-	bool (*hif_log_bus_info)(struct hif_softc *scn, uint8_t *data,
+	void (*hif_log_bus_info)(struct hif_softc *scn, uint8_t *data,
 				 unsigned int *offset);
 };
 
@@ -251,16 +251,15 @@ void hif_config_irq_affinity(struct hif_softc *hif_sc);
  * @data: hang event data buffer
  * @offset: offset at which data needs to be written
  *
- * Return: true if bus_id is invalid else false
+ * Return:  None
  */
-bool hif_log_bus_info(struct hif_softc *scn, uint8_t *data,
+void hif_log_bus_info(struct hif_softc *scn, uint8_t *data,
 		      unsigned int *offset);
 #else
 static inline
-bool hif_log_bus_info(struct hif_softc *scn, uint8_t *data,
+void hif_log_bus_info(struct hif_softc *scn, uint8_t *data,
 		      unsigned int *offset)
 {
-	return false;
 }
 #endif
 #endif /* _MULTIBUS_H_ */

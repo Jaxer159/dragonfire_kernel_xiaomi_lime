@@ -2757,13 +2757,12 @@ static int ipa3_lcl_mdm_ssr_notifier_cb(struct notifier_block *this,
 	switch (code) {
 	case SUBSYS_BEFORE_SHUTDOWN:
 		IPAWANINFO("IPA received MPSS BEFORE_SHUTDOWN\n");
-		/*Stop netdev first to stop queueing pkts to Q6 */
-		if (IPA_NETDEV())
-			netif_stop_queue(IPA_NETDEV());
 		/* send SSR before-shutdown notification to IPACM */
 		rmnet_ipa_send_ssr_notification(false);
 		atomic_set(&rmnet_ipa3_ctx->is_ssr, 1);
 		ipa3_q6_pre_shutdown_cleanup();
+		if (IPA_NETDEV())
+			netif_stop_queue(IPA_NETDEV());
 		ipa3_qmi_stop_workqueues();
 		ipa3_wan_ioctl_stop_qmi_messages();
 		ipa_stop_polling_stats();
@@ -2932,8 +2931,7 @@ static void tethering_stats_poll_queue(struct work_struct *work)
 
 	/* Schedule again only if there's an active polling interval */
 	if (ipa3_rmnet_ctx.polling_interval != 0)
-		queue_delayed_work(system_power_efficient_wq, 
-			&ipa_tether_stats_poll_wakequeue_work,
+		schedule_delayed_work(&ipa_tether_stats_poll_wakequeue_work,
 			msecs_to_jiffies(ipa3_rmnet_ctx.polling_interval*1000));
 }
 
@@ -3025,8 +3023,7 @@ int rmnet_ipa3_poll_tethering_stats(struct wan_ioctl_poll_tethering_stats *data)
 		return 0;
 	}
 
-	queue_delayed_work(system_power_efficient_wq, 
-						&ipa_tether_stats_poll_wakequeue_work, 0);
+	schedule_delayed_work(&ipa_tether_stats_poll_wakequeue_work, 0);
 	return 0;
 }
 

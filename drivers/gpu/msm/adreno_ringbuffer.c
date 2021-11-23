@@ -77,8 +77,6 @@ static void adreno_ringbuffer_wptr(struct adreno_device *adreno_dev,
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
 	struct adreno_gpudev *gpudev = ADRENO_GPU_DEVICE(adreno_dev);
 	unsigned long flags;
-	bool write = false;
-	unsigned int val;
 	int ret = 0;
 
 	spin_lock_irqsave(&rb->preempt_lock, flags);
@@ -102,8 +100,13 @@ static void adreno_ringbuffer_wptr(struct adreno_device *adreno_dev,
 			if (gpudev->gpu_keepalive)
 				gpudev->gpu_keepalive(adreno_dev, true);
 
-			write = true;
-			val = rb->_wptr;
+			/*
+			 * Ensure the write posted after a possible
+			 * GMU wakeup (write could have dropped during wakeup)
+			 */
+			ret = adreno_gmu_fenced_write(adreno_dev,
+				ADRENO_REG_CP_RB_WPTR, rb->_wptr,
+				FENCE_STATUS_WRITEDROPPED0_MASK);
 			rb->skip_inline_wptr = false;
 			if (gpudev->gpu_keepalive)
 				gpudev->gpu_keepalive(adreno_dev, false);
@@ -121,14 +124,6 @@ static void adreno_ringbuffer_wptr(struct adreno_device *adreno_dev,
 
 	rb->wptr = rb->_wptr;
 	spin_unlock_irqrestore(&rb->preempt_lock, flags);
-
-	/*
-	 * Ensure the write posted after a possible
-	 * GMU wakeup (write could have dropped during wakeup)
-	 */
-	if (write)
-		ret = adreno_gmu_fenced_write(adreno_dev, ADRENO_REG_CP_RB_WPTR,
-			val, FENCE_STATUS_WRITEDROPPED0_MASK);
 
 	if (ret) {
 		/*
@@ -910,7 +905,6 @@ int adreno_ringbuffer_submitcmd(struct adreno_device *adreno_dev,
 	struct kgsl_memobj_node *ib;
 	unsigned int numibs = 0;
 	unsigned int *link;
-	unsigned int link_onstack[SZ_256] __aligned(sizeof(long));
 	unsigned int *cmds;
 	struct kgsl_context *context;
 	struct adreno_context *drawctxt;
@@ -1038,14 +1032,10 @@ int adreno_ringbuffer_submitcmd(struct adreno_device *adreno_dev,
 	if (gpudev->ccu_invalidate)
 		dwords += 4;
 
-	if (dwords <= ARRAY_SIZE(link_onstack)) {
-		link = link_onstack;
-	} else {
-		link = kcalloc(dwords, sizeof(unsigned int), GFP_KERNEL);
-		if (!link) {
-			ret = -ENOMEM;
-			goto done;
-		}
+	link = kcalloc(dwords, sizeof(unsigned int), GFP_KERNEL);
+	if (!link) {
+		ret = -ENOMEM;
+		goto done;
 	}
 
 	cmds = link;
@@ -1175,8 +1165,7 @@ done:
 	trace_kgsl_issueibcmds(device, context->id, numibs, drawobj->timestamp,
 			drawobj->flags, ret, drawctxt->type);
 
-	if (link != link_onstack)
-		kfree(link);
+	kfree(link);
 	return ret;
 }
 

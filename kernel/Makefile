@@ -101,6 +101,7 @@ obj-$(CONFIG_TASK_DELAY_ACCT) += delayacct.o
 obj-$(CONFIG_TASKSTATS) += taskstats.o tsacct.o
 obj-$(CONFIG_TRACEPOINTS) += tracepoint.o
 obj-$(CONFIG_LATENCYTOP) += latencytop.o
+obj-$(CONFIG_ELFCORE) += elfcore.o
 obj-$(CONFIG_FUNCTION_TRACER) += trace/
 obj-$(CONFIG_TRACING) += trace/
 obj-$(CONFIG_TRACE_CLOCK) += trace/
@@ -125,16 +126,16 @@ obj-$(CONFIG_HAS_IOMEM) += iomem.o
 obj-$(CONFIG_ZONE_DEVICE) += memremap.o
 obj-$(CONFIG_RSEQ) += rseq.o
 
-$(obj)/configs.o: $(obj)/config_data.gz
+$(obj)/configs.o: $(obj)/config_data.h
 
 targets += config_data.gz
 $(obj)/config_data.gz: arch/arm64/configs/vendor/citrus-stock-perf_defconfig FORCE
 	$(call if_changed,gzip)
 
-filechk_cat = cat $<
-
-$(obj)/config_data: $(KCONFIG_CONFIG) FORCE
-	$(call filechk,cat)
+      filechk_ikconfiggz = (echo "static const char kernel_config_data[] __used = MAGIC_START"; cat $< | scripts/bin2c; echo "MAGIC_END;")
+targets += config_data.h
+$(obj)/config_data.h: $(obj)/config_data.gz FORCE
+	$(call filechk,ikconfiggz)
 
 $(obj)/kheaders.o: $(obj)/kheaders_data.tar.xz
 

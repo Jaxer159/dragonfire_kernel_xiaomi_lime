@@ -1228,15 +1228,14 @@ void qlt_schedule_sess_for_deletion(struct fc_port *sess)
 	case DSC_DELETE_PEND:
 		return;
 	case DSC_DELETED:
-		if (!sess->plogi_link[QLT_PLOGI_LINK_SAME_WWN] &&
-			!sess->plogi_link[QLT_PLOGI_LINK_CONFLICT]) {
-			if (tgt && tgt->tgt_stop && tgt->sess_count == 0)
-				wake_up_all(&tgt->waitQ);
+		if (tgt && tgt->tgt_stop && (tgt->sess_count == 0))
+			wake_up_all(&tgt->waitQ);
+		if (sess->vha->fcport_count == 0)
+			wake_up_all(&sess->vha->fcport_waitQ);
 
-			if (sess->vha->fcport_count == 0)
-				wake_up_all(&sess->vha->fcport_waitQ);
+		if (!sess->plogi_link[QLT_PLOGI_LINK_SAME_WWN] &&
+			!sess->plogi_link[QLT_PLOGI_LINK_CONFLICT])
 			return;
-		}
 		break;
 	case DSC_UPD_FCPORT:
 		/*
@@ -1571,12 +1570,10 @@ void qlt_stop_phase2(struct qla_tgt *tgt)
 		return;
 	}
 
-	mutex_lock(&tgt->ha->optrom_mutex);
 	mutex_lock(&vha->vha_tgt.tgt_mutex);
 	tgt->tgt_stop = 0;
 	tgt->tgt_stopped = 1;
 	mutex_unlock(&vha->vha_tgt.tgt_mutex);
-	mutex_unlock(&tgt->ha->optrom_mutex);
 
 	ql_dbg(ql_dbg_tgt_mgt, vha, 0xf00c, "Stop of tgt %p finished\n",
 	    tgt);

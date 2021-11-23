@@ -297,7 +297,6 @@
 				1113600	83
 				1401600	146
 				1536000	158
-				1612800 170
 				1747200	228
 				1843200	285
 			>;
@@ -308,46 +307,11 @@
 				1113600	307
 				1401600	485
 				1747200	857
-				1804800	944
+				1804800	883
 				1958400	1222
 				2150400	1592
 				2208000	1632
 				2457600	2080
-			>;
-			idle-cost-data = <
-				100 80 60 40
-			>;
-		};
-
-		CLUSTER_COST_0: cluster-cost0 {
-			busy-cost-data = <
-				633600	4
-				902400	5
-				1113600	7
-				1401600	9
-				1536000	9
-				1612800 10
-				1747200	11
-				1843200	13
-			>;
-			idle-cost-data = <
-				4 3 2 1
-			>;
-		};
-
-		CLUSTER_COST_1: cluster-cost1 {
-			busy-cost-data = <
-				1113600	14
-				1401600	17
-				1747200	25
-				1804800	27
-				1958400	31
-				2150400	37
-				2208000	44
-				2457600	45
-			>;
-			idle-cost-data = <
-				4 3 2 1
 			>;
 		};
 	};
@@ -533,6 +497,7 @@
 	};
 };
 
+#include "sdm660-coresight.dtsi"
 &soc {
 	#address-cells = <1>;
 	#size-cells = <1>;
@@ -2553,7 +2518,6 @@
 		clock-names = "core_clk", "core_a_clk";
 
 		qcom,coresight-jtagmm-cpu = <&CPU0>;
-		status = "disabled";
 	};
 
 	jtag_mm1: jtagmm@7940000 {
@@ -2566,7 +2530,6 @@
 		clock-names = "core_clk", "core_a_clk";
 
 		qcom,coresight-jtagmm-cpu = <&CPU1>;
-		status = "disabled";
 	};
 
 	jtag_mm2: jtagmm@7a40000 {
@@ -2579,7 +2542,6 @@
 		clock-names = "core_clk", "core_a_clk";
 
 		qcom,coresight-jtagmm-cpu = <&CPU2>;
-		status = "disabled";
 	};
 
 	jtag_mm3: jtagmm@7b40000 {
@@ -2592,7 +2554,6 @@
 		clock-names = "core_clk", "core_a_clk";
 
 		qcom,coresight-jtagmm-cpu = <&CPU3>;
-		status = "disabled";
 	};
 
 	jtag_mm4: jtagmm@7c40000 {
@@ -2605,7 +2566,6 @@
 		clock-names = "core_clk", "core_a_clk";
 
 		qcom,coresight-jtagmm-cpu = <&CPU4>;
-		status = "disabled";
 	};
 
 	jtag_mm5: jtagmm@7d40000 {
@@ -2618,7 +2578,6 @@
 		clock-names = "core_clk", "core_a_clk";
 
 		qcom,coresight-jtagmm-cpu = <&CPU5>;
-		status = "disabled";
 	};
 
 	jtag_mm6: jtagmm@7e40000 {
@@ -2631,7 +2590,6 @@
 		clock-names = "core_clk", "core_a_clk";
 
 		qcom,coresight-jtagmm-cpu = <&CPU6>;
-		status = "disabled";
 	};
 
 	jtag_mm7: jtagmm@7f40000 {
@@ -2644,7 +2602,6 @@
 		clock-names = "core_clk", "core_a_clk";
 
 		qcom,coresight-jtagmm-cpu = <&CPU7>;
-		status = "disabled";
 	};
 };
 

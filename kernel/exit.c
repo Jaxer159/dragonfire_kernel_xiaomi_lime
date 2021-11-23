@@ -186,14 +186,6 @@ void release_task(struct task_struct *p)
 {
 	struct task_struct *leader;
 	int zap_leader;
-
-	if (p->fpack) {
-		if (p->fpack->iname)
-			__putname(p->fpack->iname);
-		kfree(p->fpack);
-		p->fpack = NULL;
-	}
-
 repeat:
 	/* don't need to get the RCU readlock here - the process is dead and
 	 * can't be modifying its own credentials. But shut RCU-lockdep up */
@@ -506,7 +498,7 @@ static void exit_mm(void)
 	struct mm_struct *mm = current->mm;
 	struct core_state *core_state;
 
-	exit_mm_release(current, mm);
+	mm_release(current, mm);
 	if (!mm)
 		return;
 	sync_mm_rss(mm);
@@ -525,10 +517,7 @@ static void exit_mm(void)
 		up_read(&mm->mmap_sem);
 
 		self.task = current;
-		if (self.task->flags & PF_SIGNALED)
-			self.next = xchg(&core_state->dumper.next, &self);
-		else
-			self.task = NULL;
+		self.next = xchg(&core_state->dumper.next, &self);
 		/*
 		 * Implies mb(), the result of xchg() must be visible
 		 * to core_state->dumper.
@@ -779,32 +768,6 @@ static void check_stack_usage(void)
 static inline void check_stack_usage(void) {}
 #endif
 
-#ifndef CONFIG_PROFILING
-static BLOCKING_NOTIFIER_HEAD(task_exit_notifier);
-
-int profile_event_register(enum profile_type t, struct notifier_block *n)
-{
-	if (t == PROFILE_TASK_EXIT)
-		return blocking_notifier_chain_register(&task_exit_notifier, n);
-
-	return -ENOSYS;
-}
-
-int profile_event_unregister(enum profile_type t, struct notifier_block *n)
-{
-	if (t == PROFILE_TASK_EXIT)
-		return blocking_notifier_chain_unregister(&task_exit_notifier,
-							  n);
-
-	return -ENOSYS;
-}
-
-void profile_task_exit(struct task_struct *tsk)
-{
-	blocking_notifier_call_chain(&task_exit_notifier, 0, tsk);
-}
-#endif
-
 void __noreturn do_exit(long code)
 {
 	struct task_struct *tsk = current;
@@ -853,12 +816,33 @@ void __noreturn do_exit(long code)
 	 */
 	if (unlikely(tsk->flags & PF_EXITING)) {
 		pr_alert("Fixing recursive fault but reboot is needed!\n");
-		futex_exit_recursive(tsk);
+		/*
+		 * We can do this unlocked here. The futex code uses
+		 * this flag just to verify whether the pi state
+		 * cleanup has been done or not. In the worst case it
+		 * loops once more. We pretend that the cleanup was
+		 * done as there is no way to return. Either the
+		 * OWNER_DIED bit is set by now or we push the blocked
+		 * task into the wait for ever nirwana as well.
+		 */
+		tsk->flags |= PF_EXITPIDONE;
 		set_current_state(TASK_UNINTERRUPTIBLE);
 		schedule();
 	}
 
 	exit_signals(tsk);  /* sets PF_EXITING */
+	sched_exit(tsk);
+	/*
+	 * Ensure that all new tsk->pi_lock acquisitions must observe
+	 * PF_EXITING. Serializes against futex.c:attach_to_pi_owner().
+	 */
+	smp_mb();
+	/*
+	 * Ensure that we must observe the pi_state in exit_mm() ->
+	 * mm_release() -> exit_pi_state_list().
+	 */
+	raw_spin_lock_irq(&tsk->pi_lock);
+	raw_spin_unlock_irq(&tsk->pi_lock);
 
 	/* sync mm's RSS info before statistics gathering */
 	if (tsk->mm)
@@ -933,6 +917,12 @@ void __noreturn do_exit(long code)
 	 * Make sure we are holding no locks:
 	 */
 	debug_check_no_locks_held();
+	/*
+	 * We can do this unlocked here. The futex code uses this flag
+	 * just to verify whether the pi state cleanup has been done
+	 * or not. In the worst case it loops once more.
+	 */
+	tsk->flags |= PF_EXITPIDONE;
 
 	if (tsk->io_context)
 		exit_io_context(tsk);

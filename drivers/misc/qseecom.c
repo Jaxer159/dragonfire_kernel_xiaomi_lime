@@ -1289,7 +1289,7 @@ static int qseecom_create_bridge_for_secbuf(int ion_fd, struct dma_buf *dmabuf,
 
 	nelems = ion_get_flags_num_vm_elems(dma_buf_flags);
 	if (nelems == 0) {
-		pr_err("failed to get vm num from flag = %lx\n", dma_buf_flags);
+		pr_err("failed to get vm num from flag = %x\n", dma_buf_flags);
 		ret = -EINVAL;
 		goto exit;
 	}
@@ -5289,10 +5289,8 @@ int qseecom_send_command(struct qseecom_handle *handle, void *send_buf,
 		}
 		perf_enabled = true;
 	}
-	if (!strcmp(data->client.app_name, "securemm") ||
-	    !strcmp(data->client.app_name, "slateapp")) {
+	if (!strcmp(data->client.app_name, "securemm"))
 		data->use_legacy_cmd = true;
-	}
 
 	dmac_flush_range(req.cmd_req_buf, req.cmd_req_buf + req.cmd_req_len);
 

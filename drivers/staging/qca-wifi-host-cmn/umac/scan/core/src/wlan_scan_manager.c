@@ -655,10 +655,6 @@ static void scm_req_update_concurrency_params(struct wlan_objmgr_vdev *vdev,
 		req->scan_req.min_rest_time = req->scan_req.max_rest_time;
 	}
 
-	if (policy_mgr_current_concurrency_is_mcc(psoc))
-		req->scan_req.min_rest_time =
-			scan_obj->scan_def.conc_max_rest_time;
-
 	/*
 	 * If scan req for SAP (ACS Sacn) use dwell_time_active_def as dwell
 	 * time for 2g channels instead of dwell_time_active_2g
@@ -718,13 +714,8 @@ static void scm_req_update_concurrency_params(struct wlan_objmgr_vdev *vdev,
 				break;
 			}
 
-			if (go_present && sta_active) {
-				req->scan_req.burst_duration =
-					req->scan_req.dwell_time_active;
-				break;
-			}
-
-			if (ndi_present || (p2p_cli_present && sta_active)) {
+			if (ndi_present ||
+			    ((go_present || p2p_cli_present) && sta_active)) {
 				req->scan_req.burst_duration = 0;
 				break;
 			}
@@ -956,7 +947,7 @@ static void scm_sort_6ghz_channel_list(struct wlan_objmgr_vdev *vdev,
 	uint8_t i, j = 0, max, tmp_list_count;
 	struct meta_rnr_channel *channel;
 	struct chan_info temp_list[MAX_6GHZ_CHANNEL];
-	struct rnr_chan_weight *rnr_chan_info, temp;
+	struct rnr_chan_weight *rnr_chan_info, *temp;
 	uint32_t weight;
 	struct wlan_objmgr_psoc *psoc;
 

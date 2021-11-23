@@ -1180,14 +1180,14 @@ cfg80211_bss_update(struct cfg80211_registered_device *rdev,
 			 * be grouped with this beacon for updates ...
 			 */
 			if (!cfg80211_combine_bsses(rdev, new)) {
-				bss_ref_put(rdev, new);
+				kfree(new);
 				goto drop;
 			}
 		}
 
 		if (rdev->bss_entries >= bss_entries_limit &&
 		    !cfg80211_bss_expire_oldest(rdev)) {
-			bss_ref_put(rdev, new);
+			kfree(new);
 			goto drop;
 		}
 
@@ -1253,8 +1253,8 @@ cfg80211_get_bss_channel(struct wiphy *wiphy, const u8 *ie, size_t ielen,
 		return channel;
 	}
 
-	freq = ieee80211_channel_to_freq_khz(channel_number, channel->band);
-	alt_channel = ieee80211_get_channel_khz(wiphy, freq);
+	freq = ieee80211_channel_to_frequency(channel_number, channel->band);
+	alt_channel = ieee80211_get_channel(wiphy, freq);
 	if (!alt_channel) {
 		if (channel->band == NL80211_BAND_2GHZ) {
 			/*
@@ -1550,12 +1550,7 @@ cfg80211_update_notlisted_nontrans(struct wiphy *wiphy,
 		return;
 	new_ie_len -= trans_ssid[1];
 	mbssid = cfg80211_find_ie(WLAN_EID_MULTIPLE_BSSID, ie, ielen);
-	/*
-	 * It's not valid to have the MBSSID element before SSID
-	 * ignore if that happens - the code below assumes it is
-	 * after (while copying things inbetween).
-	 */
-	if (!mbssid || mbssid < trans_ssid)
+	if (!mbssid)
 		return;
 	new_ie_len -= mbssid[1];
 	rcu_read_lock();

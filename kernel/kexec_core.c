@@ -217,13 +217,13 @@ int sanity_check_segment_list(struct kimage *image)
 	 * wasted allocating pages, which can cause a soft lockup.
 	 */
 	for (i = 0; i < nr_segments; i++) {
-		if (PAGE_COUNT(image->segment[i].memsz) > totalram_pages() / 2)
+		if (PAGE_COUNT(image->segment[i].memsz) > totalram_pages / 2)
 			return -EINVAL;
 
 		total_pages += PAGE_COUNT(image->segment[i].memsz);
 	}
 
-	if (total_pages > totalram_pages() / 2)
+	if (total_pages > totalram_pages / 2)
 		return -EINVAL;
 
 	/*
@@ -1130,6 +1130,7 @@ int kernel_kexec(void)
 
 #ifdef CONFIG_KEXEC_JUMP
 	if (kexec_image->preserve_context) {
+		lock_system_sleep();
 		pm_prepare_console();
 		error = freeze_processes();
 		if (error) {
@@ -1192,6 +1193,7 @@ int kernel_kexec(void)
 		thaw_processes();
  Restore_console:
 		pm_restore_console();
+		unlock_system_sleep();
 	}
 #endif
 

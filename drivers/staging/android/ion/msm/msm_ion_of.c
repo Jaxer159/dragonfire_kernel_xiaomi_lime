@@ -69,10 +69,6 @@ static struct ion_heap_desc ion_heap_meta[] = {
 		.name   = ION_AUDIO_HEAP_NAME,
 	},
 	{
-		.id     = ION_VIDEO_HEAP_ID,
-		.name   = ION_VIDEO_HEAP_NAME,
-	},
-	{
 		.id	= ION_SECURE_CARVEOUT_HEAP_ID,
 		.name	= ION_SECURE_CARVEOUT_HEAP_NAME,
 	}
@@ -371,7 +367,6 @@ static struct platform_driver msm_ion_driver = {
 	.driver = {
 		.name = "ion-msm",
 		.of_match_table = msm_ion_match_table,
-		.probe_type = PROBE_PREFER_ASYNCHRONOUS,
 	},
 };
 

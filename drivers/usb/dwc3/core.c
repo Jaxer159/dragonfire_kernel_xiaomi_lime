@@ -1630,7 +1630,6 @@ static int dwc3_remove(struct platform_device *pdev)
 	dwc3_debugfs_exit(dwc);
 	dwc3_gadget_exit(dwc);
 	pm_runtime_allow(&pdev->dev);
-
 	pm_runtime_disable(&pdev->dev);
 
 	dwc3_free_event_buffers(dwc);
@@ -1639,8 +1638,6 @@ static int dwc3_remove(struct platform_device *pdev)
 
 	ipc_log_context_destroy(dwc->dwc_ipc_log_ctxt);
 	dwc->dwc_ipc_log_ctxt = NULL;
-	ipc_log_context_destroy(dwc->dwc_dma_ipc_log_ctxt);
-	dwc->dwc_dma_ipc_log_ctxt = NULL;
 	count--;
 	dwc3_instance[dwc->index] = NULL;
 
@@ -1780,7 +1777,7 @@ static int dwc3_resume_common(struct dwc3 *dwc, pm_message_t msg)
 		if (PMSG_IS_AUTO(msg))
 			break;
 
-		ret = dwc3_core_init_for_resume(dwc);
+		ret = dwc3_core_init(dwc);
 		if (ret)
 			return ret;
 
@@ -1925,7 +1922,7 @@ static int dwc3_resume(struct device *dev)
 		 * which is now out of LPM. This allows runtime_suspend later.
 		 */
 		if (dwc->current_dr_role == DWC3_GCTL_PRTCAP_HOST &&
-		    dwc->ignore_wakeup_src_in_hostmode)
+		    dwc->host_poweroff_in_pm_suspend)
 			goto runtime_set_active;
 
 		return 0;

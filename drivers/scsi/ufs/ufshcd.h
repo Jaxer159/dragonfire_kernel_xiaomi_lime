@@ -390,6 +390,15 @@ struct ufs_hba_variant_ops {
 };
 
 /**
+ * struct ufs_hba_pm_qos_variant_ops - variant specific PM QoS callbacks
+ */
+struct ufs_hba_pm_qos_variant_ops {
+	void		(*req_start)(struct ufs_hba *hba, struct request *req);
+	void		(*req_end)(struct ufs_hba *hba, struct request *req,
+				   bool should_lock);
+};
+
+/**
  * struct ufs_hba_variant - variant specific parameters
  * @name: variant name
  */
@@ -397,6 +406,7 @@ struct ufs_hba_variant {
 	struct device				*dev;
 	const char				*name;
 	struct ufs_hba_variant_ops		*vops;
+	struct ufs_hba_pm_qos_variant_ops	*pm_qos_vops;
 };
 
 struct keyslot_mgmt_ll_ops;
@@ -503,7 +513,6 @@ enum ufshcd_hibern8_on_idle_state {
  * @delay_attr: sysfs attribute to control delay_attr
  * @enable_attr: sysfs attribute to enable/disable hibern8 on idle
  * @is_enabled: Indicates the current status of hibern8
- * @enable_mutex: protect sys node race from multithread access
  */
 struct ufs_hibern8_on_idle {
 	struct delayed_work enter_work;
@@ -515,7 +524,6 @@ struct ufs_hibern8_on_idle {
 	struct device_attribute delay_attr;
 	struct device_attribute enable_attr;
 	bool is_enabled;
-	struct mutex enable_mutex;
 };
 
 /**
@@ -988,7 +996,6 @@ struct ufs_hba {
 	struct work_struct eh_work;
 	struct work_struct eeh_work;
 	struct work_struct rls_work;
-	struct work_struct hibern8_on_idle_enable_work;
 
 	/* HBA Errors */
 	u32 errors;
@@ -1584,6 +1591,21 @@ static inline void ufshcd_vops_remove_debugfs(struct ufs_hba *hba)
 {
 }
 #endif
+
+static inline void ufshcd_vops_pm_qos_req_start(struct ufs_hba *hba,
+		struct request *req)
+{
+	if (hba->var && hba->var->pm_qos_vops &&
+		hba->var->pm_qos_vops->req_start)
+		hba->var->pm_qos_vops->req_start(hba, req);
+}
+
+static inline void ufshcd_vops_pm_qos_req_end(struct ufs_hba *hba,
+		struct request *req, bool lock)
+{
+	if (hba->var && hba->var->pm_qos_vops && hba->var->pm_qos_vops->req_end)
+		hba->var->pm_qos_vops->req_end(hba, req, lock);
+}
 
 extern struct ufs_pm_lvl_states ufs_pm_lvl_states[];
 

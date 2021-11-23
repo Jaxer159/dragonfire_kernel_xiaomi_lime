@@ -31,10 +31,6 @@ size_t strlcpy(char *, const char *, size_t);
 #ifndef __HAVE_ARCH_STRSCPY
 ssize_t strscpy(char *, const char *, size_t);
 #endif
-
-/* Wraps calls to strscpy()/memset(), no arch specific code required */
-ssize_t strscpy_pad(char *dest, const char *src, size_t count);
-
 #ifndef __HAVE_ARCH_STRCAT
 extern char * strcat(char *, const char *);
 #endif
@@ -270,18 +266,10 @@ extern char *__underlying_strncpy(char *p, const char *q, __kernel_size_t size) 
 #define __underlying_strncpy	__builtin_strncpy
 #endif
 
-/*
- * a more reliable check for constant arguments, see
- * https://gcc.gnu.org/bugzilla/show_bug.cgi?id=72785
- */
-#define __constant_argument(arg) \
-	__builtin_choose_expr(__builtin_constant_p(arg), (arg), 0)
-
 __FORTIFY_INLINE char *strncpy(char *p, const char *q, __kernel_size_t size)
 {
 	size_t p_size = __builtin_object_size(p, 0);
-	size_t constsize = __constant_argument(size);
-	if (p_size < constsize)
+	if (__builtin_constant_p(size) && p_size < size)
 		__write_overflow();
 	if (p_size < size)
 		fortify_panic(__func__);
@@ -335,8 +323,7 @@ __FORTIFY_INLINE size_t strlcpy(char *p, const char *q, size_t size)
 	ret = strlen(q);
 	if (size) {
 		size_t len = (ret >= size) ? size - 1 : ret;
-		size_t constlen = __constant_argument(len);
-		if (constlen >= p_size)
+		if (__builtin_constant_p(len) && len >= p_size)
 			__write_overflow();
 		if (len >= p_size)
 			fortify_panic(__func__);
@@ -366,8 +353,7 @@ __FORTIFY_INLINE char *strncat(char *p, const char *q, __kernel_size_t count)
 __FORTIFY_INLINE void *memset(void *p, int c, __kernel_size_t size)
 {
 	size_t p_size = __builtin_object_size(p, 0);
-	size_t constsize = __constant_argument(size);
-	if (p_size < constsize)
+	if (__builtin_constant_p(size) && p_size < size)
 		__write_overflow();
 	if (p_size < size)
 		fortify_panic(__func__);
@@ -378,11 +364,12 @@ __FORTIFY_INLINE void *memcpy(void *p, const void *q, __kernel_size_t size)
 {
 	size_t p_size = __builtin_object_size(p, 0);
 	size_t q_size = __builtin_object_size(q, 0);
-	size_t constsize = __constant_argument(size);
-	if (p_size < constsize)
-		__write_overflow();
-	if (q_size < constsize)
-		__read_overflow2();
+	if (__builtin_constant_p(size)) {
+		if (p_size < size)
+			__write_overflow();
+		if (q_size < size)
+			__read_overflow2();
+	}
 	if (p_size < size || q_size < size)
 		fortify_panic(__func__);
 	return __underlying_memcpy(p, q, size);
@@ -392,11 +379,12 @@ __FORTIFY_INLINE void *memmove(void *p, const void *q, __kernel_size_t size)
 {
 	size_t p_size = __builtin_object_size(p, 0);
 	size_t q_size = __builtin_object_size(q, 0);
-	size_t constsize = __constant_argument(size);
-	if (p_size < constsize)
-		__write_overflow();
-	if (q_size < constsize)
-		__read_overflow2();
+	if (__builtin_constant_p(size)) {
+		if (p_size < size)
+			__write_overflow();
+		if (q_size < size)
+			__read_overflow2();
+	}
 	if (p_size < size || q_size < size)
 		fortify_panic(__func__);
 	return __underlying_memmove(p, q, size);
@@ -406,8 +394,7 @@ extern void *__real_memscan(void *, int, __kernel_size_t) __RENAME(memscan);
 __FORTIFY_INLINE void *memscan(void *p, int c, __kernel_size_t size)
 {
 	size_t p_size = __builtin_object_size(p, 0);
-	size_t constsize = __constant_argument(size);
-	if (p_size < constsize)
+	if (__builtin_constant_p(size) && p_size < size)
 		__read_overflow();
 	if (p_size < size)
 		fortify_panic(__func__);
@@ -418,11 +405,12 @@ __FORTIFY_INLINE int memcmp(const void *p, const void *q, __kernel_size_t size)
 {
 	size_t p_size = __builtin_object_size(p, 0);
 	size_t q_size = __builtin_object_size(q, 0);
-	size_t constsize = __constant_argument(size);
-	if (p_size < constsize)
-		__read_overflow();
-	if (q_size < constsize)
-		__read_overflow2();
+	if (__builtin_constant_p(size)) {
+		if (p_size < size)
+			__read_overflow();
+		if (q_size < size)
+			__read_overflow2();
+	}
 	if (p_size < size || q_size < size)
 		fortify_panic(__func__);
 	return __underlying_memcmp(p, q, size);
@@ -431,8 +419,7 @@ __FORTIFY_INLINE int memcmp(const void *p, const void *q, __kernel_size_t size)
 __FORTIFY_INLINE void *memchr(const void *p, int c, __kernel_size_t size)
 {
 	size_t p_size = __builtin_object_size(p, 0);
-	size_t constsize = __constant_argument(size);
-	if (p_size < constsize)
+	if (__builtin_constant_p(size) && p_size < size)
 		__read_overflow();
 	if (p_size < size)
 		fortify_panic(__func__);
@@ -443,8 +430,7 @@ void *__real_memchr_inv(const void *s, int c, size_t n) __RENAME(memchr_inv);
 __FORTIFY_INLINE void *memchr_inv(const void *p, int c, size_t size)
 {
 	size_t p_size = __builtin_object_size(p, 0);
-	size_t constsize = __constant_argument(size);
-	if (p_size < constsize)
+	if (__builtin_constant_p(size) && p_size < size)
 		__read_overflow();
 	if (p_size < size)
 		fortify_panic(__func__);
@@ -455,8 +441,7 @@ extern void *__real_kmemdup(const void *src, size_t len, gfp_t gfp) __RENAME(kme
 __FORTIFY_INLINE void *kmemdup(const void *p, size_t size, gfp_t gfp)
 {
 	size_t p_size = __builtin_object_size(p, 0);
-	size_t constsize = __constant_argument(size);
-	if (p_size < constsize)
+	if (__builtin_constant_p(size) && p_size < size)
 		__read_overflow();
 	if (p_size < size)
 		fortify_panic(__func__);

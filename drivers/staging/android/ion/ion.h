@@ -23,7 +23,6 @@
 #include <linux/miscdevice.h>
 #include <linux/bitops.h>
 #include <linux/vmstat.h>
-#include <linux/msm_dma_iommu_mapping.h>
 #include "ion_kernel.h"
 #include "../uapi/ion.h"
 #include "../uapi/msm_ion.h"
@@ -39,7 +38,6 @@
 #define ION_SECURE_HEAP_NAME	"secure_heap"
 #define ION_SECURE_DISPLAY_HEAP_NAME "secure_display"
 #define ION_AUDIO_HEAP_NAME    "audio"
-#define ION_VIDEO_HEAP_NAME    "video"
 
 #define ION_IS_CACHED(__flags)  ((__flags) & ION_FLAG_CACHED)
 
@@ -146,7 +144,6 @@ struct ion_buffer {
 	struct sg_table *sg_table;
 	struct list_head attachments;
 	struct list_head vmas;
-	struct msm_iommu_data iommu_data;
 };
 
 void ion_buffer_destroy(struct ion_buffer *buffer);

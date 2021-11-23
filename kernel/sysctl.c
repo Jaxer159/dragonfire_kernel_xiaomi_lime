@@ -69,8 +69,6 @@
 #include <linux/mount.h>
 #include <linux/pipe_fs_i.h>
 
-#include "../lib/kstrtox.h"
-
 #include <linux/uaccess.h>
 #include <asm/processor.h>
 
@@ -103,8 +101,7 @@
 
 /* External variables not in a header file. */
 #ifdef CONFIG_USB
-int deny_new_usb __read_mostly = 0;
-EXPORT_SYMBOL(deny_new_usb);
+extern int deny_new_usb;
 #endif
 extern int suid_dumpable;
 #ifdef CONFIG_COREDUMP
@@ -147,8 +144,8 @@ static int ten_thousand = 10000;
 static int six_hundred_forty_kb = 640 * 1024;
 #endif
 static int max_kswapd_threads = MAX_KSWAPD_THREADS;
-static int __maybe_unused two_hundred_million = 200000000;
 static int two_hundred_fifty_five = 255;
+static int __maybe_unused two_hundred_million = 200000000;
 
 #ifdef CONFIG_SCHED_WALT
 const int sched_user_hint_max = 1000;
@@ -574,7 +571,7 @@ static struct ctl_table kern_table[] = {
 		.mode		= 0644,
 		.proc_handler   = proc_dointvec_minmax,
 		.extra1		= &zero,
-		.extra2		= &two,
+		.extra2		= &four,
 	},
 	{
 		.procname	= "walt_rtg_cfs_boost_prio",
@@ -781,6 +778,22 @@ static struct ctl_table kern_table[] = {
 		.extra1		= &one,
 	},
 #endif
+	{
+		.procname	= "sched_lib_name",
+		.data		= sched_lib_name,
+		.maxlen		= LIB_PATH_LENGTH,
+		.mode		= 0644,
+		.proc_handler	= proc_dostring,
+	},
+	{
+		.procname	= "sched_lib_mask_force",
+		.data		= &sched_lib_mask_force,
+		.maxlen		= sizeof(unsigned int),
+		.mode		= 0644,
+		.proc_handler	= proc_douintvec_minmax,
+		.extra1		= &zero,
+		.extra2		= &two_hundred_fifty_five,
+	},
 #if defined(CONFIG_ENERGY_MODEL) && defined(CONFIG_CPU_FREQ_GOV_SCHEDUTIL)
 	{
 		.procname	= "sched_energy_aware",
@@ -792,22 +805,6 @@ static struct ctl_table kern_table[] = {
 		.extra2		= &one,
 	},
 #endif
-	{
-		.procname	= "sched_lib_name",
-		.data		= sched_lib_name,
-		.maxlen		= LIB_PATH_LENGTH,
-		.mode		= 0644,
-		.proc_handler	= sysctl_sched_lib_name_handler,
-	},
-	{
-		.procname	= "sched_lib_mask_force",
-		.data		= &sched_lib_mask_force,
-		.maxlen		= sizeof(unsigned int),
-		.mode		= 0644,
-		.proc_handler	= proc_douintvec_minmax,
-		.extra1		= &zero,
-		.extra2		= &two_hundred_fifty_five,
-	},
 #ifdef CONFIG_PROVE_LOCKING
 	{
 		.procname	= "prove_locking",
@@ -1679,10 +1676,10 @@ static struct ctl_table vm_table[] = {
 		.extra1		= &zero,
 	},
 	{
-		.procname	= "dirty_background_ratio_nosys",
+		.procname	= "dirty_background_ratio",
 		.data		= &dirty_background_ratio,
 		.maxlen		= sizeof(dirty_background_ratio),
-		.mode		= 0444,
+		.mode		= 0644,
 		.proc_handler	= dirty_background_ratio_handler,
 		.extra1		= &zero,
 		.extra2		= &one_hundred,
@@ -1720,10 +1717,10 @@ static struct ctl_table vm_table[] = {
 		.proc_handler	= dirty_writeback_centisecs_handler,
 	},
 	{
-		.procname	= "dirty_expire_centisecs_nosys",
+		.procname	= "dirty_expire_centisecs",
 		.data		= &dirty_expire_interval,
 		.maxlen		= sizeof(dirty_expire_interval),
-		.mode		= 0444,
+		.mode		= 0644,
 		.proc_handler	= proc_dointvec_minmax,
 		.extra1		= &zero,
 	},
@@ -2504,41 +2501,6 @@ static void proc_skip_char(char **buf, size_t *size, const char v)
 	}
 }
 
-/**
- * strtoul_lenient - parse an ASCII formatted integer from a buffer and only
- *                   fail on overflow
- *
- * @cp: kernel buffer containing the string to parse
- * @endp: pointer to store the trailing characters
- * @base: the base to use
- * @res: where the parsed integer will be stored
- *
- * In case of success 0 is returned and @res will contain the parsed integer,
- * @endp will hold any trailing characters.
- * This function will fail the parse on overflow. If there wasn't an overflow
- * the function will defer the decision what characters count as invalid to the
- * caller.
- */
-static int strtoul_lenient(const char *cp, char **endp, unsigned int base,
-			   unsigned long *res)
-{
-	unsigned long long result;
-	unsigned int rv;
-
-	cp = _parse_integer_fixup_radix(cp, &base);
-	rv = _parse_integer(cp, base, &result);
-	if ((rv & KSTRTOX_OVERFLOW) || (result != (unsigned long)result))
-		return -ERANGE;
-
-	cp += rv;
-
-	if (endp)
-		*endp = (char *)cp;
-
-	*res = (unsigned long)result;
-	return 0;
-}
-
 #define TMPBUFLEN 22
 /**
  * proc_get_long - reads an ASCII formatted integer from a user buffer
@@ -2582,8 +2544,7 @@ static int proc_get_long(char **buf, size_t *size,
 	if (!isdigit(*p))
 		return -EINVAL;
 
-	if (strtoul_lenient(p, &p, 0, val))
-		return -EINVAL;
+	*val = simple_strtoul(p, &p, 0);
 
 	len = p - tmp;
 

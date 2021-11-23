@@ -886,11 +886,8 @@ static void process_diagid(uint8_t *buf, uint32_t len,
 		diag_id++;
 		new_request = 1;
 		pd_val = diag_query_pd(process_name);
-		if (pd_val < 0) {
-			pr_err("diag: diagid request string: %s does not exist in the database\n",
-			process_name);
+		if (pd_val < 0)
 			return;
-		}
 		diag_add_diag_id_to_list(diag_id, process_name,
 			pd_val, peripheral);
 		if (diagid_v2_feature_mask) {
@@ -1430,7 +1427,7 @@ int diag_send_peripheral_buffering_mode(struct diag_buffering_mode_t *params)
 	}
 
 	if (!driver->buffering_flag[params->peripheral]) {
-		pr_debug("diag: In %s, buffering flag not set for %d\n", __func__,
+		pr_err("diag: In %s, buffering flag not set for %d\n", __func__,
 		       params->peripheral);
 		return -EINVAL;
 	}

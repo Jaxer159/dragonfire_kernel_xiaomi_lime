@@ -1276,12 +1276,6 @@ int security_sidtab_hash_stats(struct selinux_state *state, char *page)
 {
 	int rc;
 
-	if (!state->initialized) {
-		pr_err("SELinux: %s:  called before initial load_policy\n",
-		       __func__);
-		return -EINVAL;
-	}
-
 	read_lock(&state->ss->policy_rwlock);
 	rc = sidtab_hash_stats(state->ss->sidtab, page);
 	read_unlock(&state->ss->policy_rwlock);
@@ -2115,7 +2109,6 @@ static void security_load_policycaps(struct selinux_state *state)
 	}
 
 	state->android_netlink_route = p->android_netlink_route;
-	state->android_netlink_getneigh = p->android_netlink_getneigh;
 	selinux_nlmsg_init();
 }
 
@@ -3554,7 +3547,6 @@ out:
 	return match;
 }
 
-#ifdef CONFIG_AUDIT
 static int (*aurule_callback)(void) = audit_update_lsm_rules;
 
 static int aurule_avc_callback(u32 event)
@@ -3577,7 +3569,6 @@ static int __init aurule_init(void)
 	return err;
 }
 __initcall(aurule_init);
-#endif
 
 #ifdef CONFIG_NETLABEL
 /**

@@ -3807,7 +3807,7 @@ QDF_STATUS wma_send_peer_assoc_req(struct bss_params *add_bss)
 				      OL_TXRX_PEER_STATE_CONN);
 		status = wma_set_cdp_vdev_pause_reason(wma, vdev_id);
 		if (QDF_IS_STATUS_ERROR(status))
-			goto send_resp;
+			goto peer_cleanup;
 	}
 
 	wmi_unified_send_txbf(wma, &add_bss->staContext);
@@ -3828,7 +3828,7 @@ QDF_STATUS wma_send_peer_assoc_req(struct bss_params *add_bss)
 				     &add_bss->staContext);
 	if (QDF_IS_STATUS_ERROR(status)) {
 		WMA_LOGE("Failed to send peer assoc status:%d", status);
-		goto send_resp;
+		goto peer_cleanup;
 	}
 
 	/* we just had peer assoc, so install key will be done later */
@@ -3849,7 +3849,7 @@ QDF_STATUS wma_send_peer_assoc_req(struct bss_params *add_bss)
 	if (!mlme_obj) {
 		WMA_LOGE("Failed to mlme obj");
 		status = QDF_STATUS_E_FAILURE;
-		goto send_resp;
+		goto peer_cleanup;
 	}
 	/*
 	 * Store the bssid in interface table, bssid will
@@ -3874,11 +3874,14 @@ QDF_STATUS wma_send_peer_assoc_req(struct bss_params *add_bss)
 			 vdev_id);
 		wma_remove_req(wma, vdev_id, WMA_PEER_ASSOC_CNF_START);
 		status = QDF_STATUS_E_FAILURE;
-		goto send_resp;
+		goto peer_cleanup;
 	}
 
 	return QDF_STATUS_SUCCESS;
 
+peer_cleanup:
+	if (peer_exist)
+		wma_remove_peer(wma, add_bss->bssId, vdev_id, false);
 send_resp:
 	wma_send_add_bss_resp(wma, vdev_id, status);
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2020 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -120,8 +120,6 @@ static struct ol_if_ops  dp_ol_if_ops = {
 	.get_con_mode = cds_get_conparam,
 	.send_delba = cds_send_delba,
 #ifdef DP_MEM_PRE_ALLOC
-	.dp_prealloc_get_context = dp_prealloc_get_context_memory,
-	.dp_prealloc_put_context = dp_prealloc_put_context_memory,
 	.dp_prealloc_get_consistent = dp_prealloc_get_coherent,
 	.dp_prealloc_put_consistent = dp_prealloc_put_coherent,
 	.dp_get_multi_pages = dp_prealloc_get_multi_pages,
@@ -227,22 +225,6 @@ static QDF_STATUS cds_wmi_send_recv_qmi(void *buf, uint32_t len, void * cb_ctx,
 	return QDF_STATUS_SUCCESS;
 }
 
-/**
- * cds_update_recovery_reason() - update the recovery reason code
- * @reason: recovery reason
- *
- * Return: None
- */
-static void cds_update_recovery_reason(enum qdf_hang_reason recovery_reason)
-{
-	if (!gp_cds_context) {
-		cds_err("gp_cds_context is null");
-		return;
-	}
-
-	gp_cds_context->recovery_reason = recovery_reason;
-}
-
 QDF_STATUS cds_init(void)
 {
 	QDF_STATUS status;
@@ -266,8 +248,6 @@ QDF_STATUS cds_init(void)
 	qdf_register_drv_connected_callback(cds_is_drv_connected);
 	qdf_register_drv_supported_callback(cds_is_drv_supported);
 	qdf_register_wmi_send_recv_qmi_callback(cds_wmi_send_recv_qmi);
-	qdf_register_recovery_reason_update(cds_update_recovery_reason);
-	qdf_register_get_bus_reg_dump(pld_get_bus_reg_dump);
 
 	return QDF_STATUS_SUCCESS;
 
@@ -289,8 +269,6 @@ void cds_deinit(void)
 	if (!gp_cds_context)
 		return;
 
-	qdf_register_get_bus_reg_dump(NULL);
-	qdf_register_recovery_reason_update(NULL);
 	qdf_register_recovering_state_query_callback(NULL);
 	qdf_register_fw_down_callback(NULL);
 	qdf_register_is_driver_unloading_callback(NULL);
@@ -2796,9 +2774,7 @@ uint32_t cds_get_arp_stats_gw_ip(void *context)
 void cds_incr_arp_stats_tx_tgt_delivered(void)
 {
 	struct hdd_context *hdd_ctx;
-	struct hdd_adapter *adapter, *next_adapter = NULL;
-	wlan_net_dev_ref_dbgid dbgid =
-			NET_DEV_HOLD_CDS_INCR_ARP_STATS_TX_TGT_DELIVERED;
+	struct hdd_adapter *adapter = NULL;
 
 	hdd_ctx = gp_cds_context->hdd_context;
 	if (!hdd_ctx) {
@@ -2806,15 +2782,9 @@ void cds_incr_arp_stats_tx_tgt_delivered(void)
 		return;
 	}
 
-	hdd_for_each_adapter_dev_held_safe(hdd_ctx, adapter, next_adapter,
-					   dbgid) {
-		if (adapter->device_mode == QDF_STA_MODE) {
-			hdd_adapter_dev_put_debug(adapter, dbgid);
-			if (next_adapter)
-				hdd_adapter_dev_put_debug(next_adapter, dbgid);
+	hdd_for_each_adapter(hdd_ctx, adapter) {
+		if (QDF_STA_MODE == adapter->device_mode)
 			break;
-		}
-		hdd_adapter_dev_put_debug(adapter, dbgid);
 	}
 
 	if (adapter)
@@ -2829,9 +2799,7 @@ void cds_incr_arp_stats_tx_tgt_delivered(void)
 void cds_incr_arp_stats_tx_tgt_acked(void)
 {
 	struct hdd_context *hdd_ctx;
-	struct hdd_adapter *adapter, *next_adapter = NULL;
-	wlan_net_dev_ref_dbgid dbgid =
-			NET_DEV_HOLD_CDS_INCR_ARP_STATS_TX_TGT_ACKED;
+	struct hdd_adapter *adapter = NULL;
 
 	hdd_ctx = gp_cds_context->hdd_context;
 	if (!hdd_ctx) {
@@ -2839,15 +2807,9 @@ void cds_incr_arp_stats_tx_tgt_acked(void)
 		return;
 	}
 
-	hdd_for_each_adapter_dev_held_safe(hdd_ctx, adapter, next_adapter,
-					   dbgid) {
-		if (adapter->device_mode == QDF_STA_MODE) {
-			hdd_adapter_dev_put_debug(adapter, dbgid);
-			if (next_adapter)
-				hdd_adapter_dev_put_debug(next_adapter, dbgid);
+	hdd_for_each_adapter(hdd_ctx, adapter) {
+		if (QDF_STA_MODE == adapter->device_mode)
 			break;
-		}
-		hdd_adapter_dev_put_debug(adapter, dbgid);
 	}
 
 	if (adapter)

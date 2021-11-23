@@ -43,7 +43,7 @@ static void __init init_irq_default_affinity(void)
 	if (!cpumask_available(irq_default_affinity))
 		zalloc_cpumask_var(&irq_default_affinity, GFP_NOWAIT);
 	if (cpumask_empty(irq_default_affinity))
-		cpumask_set_cpu(0, irq_default_affinity);
+		cpumask_setall(irq_default_affinity);
 }
 #else
 static void __init init_irq_default_affinity(void)
@@ -962,4 +962,3 @@ unsigned int kstat_irqs_usr(unsigned int irq)
 	rcu_read_unlock();
 	return sum;
 }
-EXPORT_SYMBOL_GPL(kstat_irqs_usr);

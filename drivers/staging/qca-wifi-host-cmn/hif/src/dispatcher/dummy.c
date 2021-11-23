@@ -384,10 +384,9 @@ void hif_dummy_config_irq_affinity(struct hif_softc *scn)
  * @data: hang event data buffer
  * @offset: offset at which data needs to be written
  *
- * Return: bool
+ * Return: None
  */
-bool hif_dummy_log_bus_info(struct hif_softc *scn, uint8_t *data,
+void hif_dummy_log_bus_info(struct hif_softc *scn, uint8_t *data,
 			    unsigned int *offset)
 {
-	return false;
 }

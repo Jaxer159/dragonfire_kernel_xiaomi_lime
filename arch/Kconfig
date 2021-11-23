@@ -360,21 +360,11 @@ config HAVE_PERF_USER_STACK_DUMP
 config HAVE_ARCH_JUMP_LABEL
 	bool
 
-config HAVE_ARCH_JUMP_LABEL_RELATIVE
-	bool
-
 config HAVE_RCU_TABLE_FREE
 	bool
 
 config HAVE_RCU_TABLE_INVALIDATE
 	bool
-
-config ARCH_WANT_IRQS_OFF_ACTIVATE_MM
-	bool
-	help
-	  Temporary select until all architectures can be converted to have
-	  irqs disabled over activate_mm. Architectures that do IPI based TLB
-	  shootdowns should enable this.
 
 config ARCH_HAVE_NMI_SAFE_CMPXCHG
 	bool
@@ -522,8 +512,8 @@ config LTO_CLANG
 	depends on ARCH_SUPPORTS_LTO_CLANG
 	depends on !FTRACE_MCOUNT_RECORD || HAVE_C_RECORDMCOUNT
 	depends on !KASAN
+	depends on CC_IS_CLANG && LD_IS_LLD
 	select LTO
-	select THIN_ARCHIVES
 	help
           This option enables clang's Link Time Optimization (LTO), which allows
           the compiler to optimize the kernel globally at link time. If you
@@ -531,9 +521,9 @@ config LTO_CLANG
           files, and the actual compilation from IR occurs at the LTO link step,
           which may take several minutes.
 
-          If you select this option, you must compile the kernel with clang >=
-          5.0 (make CC=clang) and GNU gold from binutils >= 2.27, and have the
-          LLVMgold plug-in in LD_LIBRARY_PATH.
+          If you select this option, you must compile the kernel with clang and
+	  LLD.
+
 endchoice
 
 config CFI
@@ -566,7 +556,6 @@ config CFI_CLANG_SHADOW
 
 config ARCH_SUPPORTS_SHADOW_CALL_STACK
 	bool
-	default y
 	help
 	  An architecture should select this if it supports Clang's Shadow
 	  Call Stack, has asm/scs.h, and implements runtime support for shadow
@@ -947,16 +936,6 @@ config STRICT_MODULE_RWX
 config ARCH_HAS_PHYS_TO_DMA
 	bool
 
-config ARCH_HAS_REFCOUNT_FULL
-	bool
-	select ARCH_HAS_REFCOUNT
-	help
-	  An architecture selects this when the optimized refcount_t
-	  implementation it provides covers all the cases that
-	  CONFIG_REFCOUNT_FULL covers as well, in which case it makes no
-	  sense to even offer CONFIG_REFCOUNT_FULL as a user selectable
-	  option.
-
 config ARCH_HAS_REFCOUNT
 	bool
 	help
@@ -970,7 +949,7 @@ config ARCH_HAS_REFCOUNT
 	  against bugs in reference counts.
 
 config REFCOUNT_FULL
-	bool "Perform full reference count validation at the expense of speed" if !ARCH_HAS_REFCOUNT_FULL
+	bool "Perform full reference count validation at the expense of speed"
 	help
 	  Enabling this switches the refcounting infrastructure from a fast
 	  unchecked atomic_t implementation to a fully state checked

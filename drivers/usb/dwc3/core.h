@@ -302,7 +302,6 @@
 
 /* Global USB2 PHY Vendor Control Register */
 #define DWC3_GUSB2PHYACC_NEWREGREQ	BIT(25)
-#define DWC3_GUSB2PHYACC_DONE		BIT(24)
 #define DWC3_GUSB2PHYACC_BUSY		BIT(23)
 #define DWC3_GUSB2PHYACC_WRITE		BIT(22)
 #define DWC3_GUSB2PHYACC_ADDR(n)	(n << 16)
@@ -1366,7 +1365,7 @@ struct dwc3 {
 	 * and core will power collapse. This also leads to reset-resume of
 	 * connected devices on PM resume.
 	 */
-	bool			ignore_wakeup_src_in_hostmode;
+	bool			host_poweroff_in_pm_suspend;
 	int			retries_on_error;
 	/*  If true, GDSC collapse will happen in HOST mode bus suspend */
 	bool			gdsc_collapse_in_host_suspend;

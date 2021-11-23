@@ -2174,7 +2174,7 @@ static int crypt_wipe_key(struct crypt_config *cc)
 
 static void crypt_calculate_pages_per_client(void)
 {
-	unsigned long pages = (totalram_pages() - totalhigh_pages()) * DM_CRYPT_MEMORY_PERCENT / 100;
+	unsigned long pages = (totalram_pages - totalhigh_pages) * DM_CRYPT_MEMORY_PERCENT / 100;
 
 	if (!dm_crypt_clients_n)
 		return;
@@ -2190,12 +2190,7 @@ static void *crypt_page_alloc(gfp_t gfp_mask, void *pool_data)
 	struct crypt_config *cc = pool_data;
 	struct page *page;
 
-	/*
-	 * Note, percpu_counter_read_positive() may over (and under) estimate
-	 * the current usage by at most (batch - 1) * num_online_cpus() pages,
-	 * but avoids potential spinlock contention of an exact result.
-	 */
-	if (unlikely(percpu_counter_read_positive(&cc->n_allocated_pages) >= dm_crypt_pages_per_client) &&
+	if (unlikely(percpu_counter_compare(&cc->n_allocated_pages, dm_crypt_pages_per_client) >= 0) &&
 	    likely(gfp_mask & __GFP_NORETRY))
 		return NULL;
 
@@ -2847,7 +2842,7 @@ static int crypt_ctr(struct dm_target *ti, unsigned int argc, char **argv)
 	else
 		cc->crypt_queue = alloc_workqueue("kcryptd",
 						  WQ_HIGHPRI | WQ_CPU_INTENSIVE | WQ_MEM_RECLAIM | WQ_UNBOUND,
-						  num_online_cpus() * 2);
+						  num_online_cpus());
 	if (!cc->crypt_queue) {
 		ti->error = "Couldn't create kcryptd queue";
 		goto bad;

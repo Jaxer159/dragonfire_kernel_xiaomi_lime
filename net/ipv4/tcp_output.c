@@ -45,21 +45,6 @@
 
 #include <trace/events/tcp.h>
 
-/* Refresh clocks of a TCP socket,
- * ensuring monotically increasing values.
- */
-void tcp_mstamp_refresh(struct tcp_sock *tp)
-{
-	u64 val = tcp_clock_ns();
-
-	if (val > tp->tcp_clock_cache)
-		tp->tcp_clock_cache = val;
-
-	val = div_u64(val, NSEC_PER_USEC);
-	if (val > tp->tcp_mstamp)
-		tp->tcp_mstamp = val;
-}
-
 static bool tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle,
 			   int push_one, gfp_t gfp);
 
@@ -247,9 +232,6 @@ void tcp_select_initial_window(const struct sock *sk, int __space, __u32 mss,
 			(*rcv_wscale)++;
 		}
 	}
-	/* Lock the initial TCP window size to 64K*/
-	*rcv_wnd = 64240;
-
 	/* Set the clamp no higher than max representable value */
 	(*window_clamp) = min_t(__u32, U16_MAX << (*rcv_wscale), *window_clamp);
 }
@@ -1038,6 +1020,8 @@ static int __tcp_transmit_skb(struct sock *sk, struct sk_buff *skb,
 	tp = tcp_sk(sk);
 
 	if (clone_it) {
+		TCP_SKB_CB(skb)->tx.in_flight = TCP_SKB_CB(skb)->end_seq
+			- tp->snd_una;
 		oskb = skb;
 
 		tcp_skb_tsorted_save(oskb) {
@@ -1051,9 +1035,6 @@ static int __tcp_transmit_skb(struct sock *sk, struct sk_buff *skb,
 			return -ENOBUFS;
 	}
 	skb->skb_mstamp = tp->tcp_mstamp;
-
-	/* TODO: might take care of jitter here */
-	tp->tcp_wstamp_ns = max(tp->tcp_wstamp_ns, tp->tcp_clock_cache);
 
 	inet = inet_sk(sk);
 	tcb = TCP_SKB_CB(skb);
@@ -1194,7 +1175,7 @@ static void tcp_queue_skb(struct sock *sk, struct sk_buff *skb)
 	struct tcp_sock *tp = tcp_sk(sk);
 
 	/* Advance write_seq and place onto the write_queue. */
-	WRITE_ONCE(tp->write_seq, TCP_SKB_CB(skb)->end_seq);
+	tp->write_seq = TCP_SKB_CB(skb)->end_seq;
 	__skb_header_release(skb);
 	tcp_add_write_queue_tail(sk, skb);
 	sk->sk_wmem_queued += skb->truesize;
@@ -1296,7 +1277,7 @@ int tcp_fragment(struct sock *sk, enum tcp_queue tcp_queue,
 {
 	struct tcp_sock *tp = tcp_sk(sk);
 	struct sk_buff *buff;
-	int nsize, old_factor, inflight_prev;
+	int nsize, old_factor;
 	long limit;
 	int nlen;
 	u8 flags;
@@ -1373,15 +1354,6 @@ int tcp_fragment(struct sock *sk, enum tcp_queue tcp_queue,
 
 		if (diff)
 			tcp_adjust_pcount(sk, skb, diff);
-
-		/* Set buff tx.in_flight as if buff were sent by itself. */
-		inflight_prev = TCP_SKB_CB(skb)->tx.in_flight - old_factor;
-		if (WARN_ONCE(inflight_prev < 0,
-			      "inconsistent: tx.in_flight: %u old_factor: %d",
-			      TCP_SKB_CB(skb)->tx.in_flight, old_factor))
-			inflight_prev = 0;
-		TCP_SKB_CB(buff)->tx.in_flight = inflight_prev +
-						 tcp_skb_pcount(buff);
 	}
 
 	/* Link BUFF into the send queue. */
@@ -1500,7 +1472,6 @@ int tcp_mtu_to_mss(struct sock *sk, int pmtu)
 	return __tcp_mtu_to_mss(sk, pmtu) -
 	       (tcp_sk(sk)->tcp_header_len - sizeof(struct tcphdr));
 }
-EXPORT_SYMBOL(tcp_mtu_to_mss);
 
 /* Inverse of above */
 int tcp_mss_to_mtu(struct sock *sk, int mss)
@@ -1651,8 +1622,7 @@ static void tcp_cwnd_validate(struct sock *sk, bool is_cwnd_limited)
 	 * window, and remember whether we were cwnd-limited then.
 	 */
 	if (!before(tp->snd_una, tp->max_packets_seq) ||
-	    tp->packets_out > tp->max_packets_out ||
-	    is_cwnd_limited) {
+	    tp->packets_out > tp->max_packets_out) {
 		tp->max_packets_out = tp->packets_out;
 		tp->max_packets_seq = tp->snd_nxt;
 		tp->is_cwnd_limited = is_cwnd_limited;
@@ -2366,7 +2336,6 @@ static bool tcp_write_xmit(struct sock *sk, unsigned int mss_now, int nonagle,
 		if (unlikely(tp->repair) && tp->repair_queue == TCP_SEND_QUEUE) {
 			/* "skb_mstamp" is used as a start point for the retransmit timer */
 			tcp_update_skb_after_send(tp, skb);
-			tcp_set_tx_in_flight(sk, skb);
 			goto repair; /* Skip network transmission */
 		}
 
@@ -2441,10 +2410,6 @@ repair:
 	else
 		tcp_chrono_stop(sk, TCP_CHRONO_RWND_LIMITED);
 
-	is_cwnd_limited |= (tcp_packets_in_flight(tp) >= tp->snd_cwnd);
-	if (likely(sent_pkts || is_cwnd_limited))
-		tcp_cwnd_validate(sk, is_cwnd_limited);
-
 	if (likely(sent_pkts)) {
 		if (tcp_in_cwnd_reduction(sk))
 			tp->prr_out += sent_pkts;
@@ -2452,6 +2417,8 @@ repair:
 		/* Send one loss probe per tail loss episode. */
 		if (push_one != 2)
 			tcp_schedule_loss_probe(sk, false);
+		is_cwnd_limited |= (tcp_packets_in_flight(tp) >= tp->snd_cwnd);
+		tcp_cwnd_validate(sk, is_cwnd_limited);
 		return false;
 	}
 	return !tp->packets_out && !tcp_write_queue_empty(sk);
@@ -2990,11 +2957,12 @@ int tcp_retransmit_skb(struct sock *sk, struct sk_buff *skb, int segs)
 #endif
 		TCP_SKB_CB(skb)->sacked |= TCPCB_RETRANS;
 		tp->retrans_out += tcp_skb_pcount(skb);
-	}
 
-	/* Save stamp of the first (attempted) retransmit. */
-	if (!tp->retrans_stamp)
-		tp->retrans_stamp = tcp_skb_timestamp(skb);
+		/* Save stamp of the first retransmit. */
+		if (!tp->retrans_stamp)
+			tp->retrans_stamp = tcp_skb_timestamp(skb);
+
+	}
 
 	if (tp->undo_retrans < 0)
 		tp->undo_retrans = 0;
@@ -3413,7 +3381,7 @@ static void tcp_connect_init(struct sock *sk)
 	else
 		tp->rcv_tstamp = tcp_jiffies32;
 	tp->rcv_wup = tp->rcv_nxt;
-	WRITE_ONCE(tp->copied_seq, tp->rcv_nxt);
+	tp->copied_seq = tp->rcv_nxt;
 
 	inet_csk(sk)->icsk_rto = tcp_timeout_init(sk);
 	inet_csk(sk)->icsk_retransmits = 0;
@@ -3429,7 +3397,7 @@ static void tcp_connect_queue_skb(struct sock *sk, struct sk_buff *skb)
 	__skb_header_release(skb);
 	sk->sk_wmem_queued += skb->truesize;
 	sk_mem_charge(sk, skb->truesize);
-	WRITE_ONCE(tp->write_seq, tcb->end_seq);
+	tp->write_seq = tcb->end_seq;
 	tp->packets_out += tcp_skb_pcount(skb);
 }
 

@@ -176,7 +176,6 @@ struct npu_reg {
  */
 struct npu_pwrctrl {
 	int32_t pwr_vote_num;
-	int32_t pwr_vote_num_sysfs;
 
 	struct npu_pwrlevel pwrlevels[NPU_MAX_PWRLEVELS];
 	uint32_t active_pwrlevel;

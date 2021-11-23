@@ -108,7 +108,7 @@ modpost_link()
 		${KBUILD_VMLINUX_LIBS}				\
 		--end-group"
 
-	if [ -n "${CONFIG_LTO_CLANG}" ] || [ -n "${CONFIG_LTO_GCC}" ]; then
+	if [ -n "${CONFIG_LTO_CLANG}" ]; then
 		# This might take a while, so indicate that we're doing
 		# an LTO link
 		info LTO vmlinux.o

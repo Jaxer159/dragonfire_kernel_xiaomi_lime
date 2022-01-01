@@ -78,7 +78,7 @@ KERNEL_DIR=$PWD
 KERN_IMG=$KERNEL_DIR/out/arch/arm64/boot/Image.gz-dtb
 TC_DIR="$HOME/toolchains/proton-clang"
 ZIP_DIR=$KERNEL_DIR/AnyKernel3
-CONFIG=vendor/dragonfire_defconfig
+CONFIG=vendor/lime-perf_defconfig
 
 # Export
 export ARCH=arm64

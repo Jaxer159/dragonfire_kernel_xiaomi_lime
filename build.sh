@@ -40,7 +40,7 @@ fi
 
 CHATID="-1001583404909"
 token=$TELEGRAM_TOKEN
-DATE=$(TZ=Asia/Moscow date +"%F")
+DATE=$(date)
 COMMIT_HEAD=$(git log --oneline -1)
 KERVER=$(make kernelversion)
 KBUILD_COMPILER_STRING="proton-clang"

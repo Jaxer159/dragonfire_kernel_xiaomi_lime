@@ -69,7 +69,7 @@ tg_post_build() {
 	-F caption="$3"  
 }
 
-tg_post_msg "<b>🔨 CI Build Triggered</b>%0A<b>Kernel Version : </b><code>$KERVER</code>%0A<b>Date : </b><code>$(TZ=Asia/Moscow date)</code>%0A<b>Compiler Used : </b><code>$KBUILD_COMPILER_STRING</code>%0a<b>Branch : </b><code>$CI_BRANCH</code>" "$CHATID"
+tg_post_msg "<b>🔨 CI Build Triggered</b>%0A<b>Kernel Version : </b><code>$KERVER</code>%0A<b>Date : </b><code>$DATE</code>%0A<b>Compiler Used : </b><code>$KBUILD_COMPILER_STRING</code>%0a<b>Branch : </b><code>$CI_BRANCH</code>" "$CHATID"
 
 SECONDS=0
 

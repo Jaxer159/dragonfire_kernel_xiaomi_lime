@@ -38,6 +38,9 @@ if [ ! -d libufdt ]; then
     rm utils.tar.gz
 fi
 
+#Clear terminal
+clear
+
 CHATID="-1001583404909"
 token=$TELEGRAM_TOKEN
 DATE=$(date)

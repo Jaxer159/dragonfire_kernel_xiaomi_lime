@@ -7,47 +7,37 @@
 # command after changing this file, to see if there are
 # any tracked files which get ignored after the change.
 #
-# Normal rules (sorted alphabetically)
+# Normal rules
 #
-AnyKernel3/
-stock/
-stock_32/
-libufdt/
 .*
-*.a
-*.asn1.[ch]
-*.bin
-*.bz2
-*.c.[012]*.*
-*.dtb
-*.dtb.S
-*.dwo
-*.elf
-*.gcno
-*.gz
-
-*.ko
-*.lex.c
-*.ll
-*.lst
-*.lz4
-*.lzma
-*.lzo
-*.mod.c
 *.o
 *.o.*
-*.order
-*.patch
+*.a
 *.s
+*.ko
 *.so
 *.so.dbg
-*.su
+*.mod.c
+*.lst
 *.symtypes
-*.tab.[ch]
+*.order
+*.elf
+*.bin
 *.tar
+*.gz
+*.bz2
+*.lzma
 *.xz
-Module.symvers
+*.lz4
+*.lzo
+*.patch
+*.gcno
+*.ll
 modules.builtin
+Module.symvers
+*.dwo
+*.su
+*.c.[012]*.*
 
 #
 # Top-level generic files
@@ -63,19 +53,9 @@ modules.builtin
 /Module.markers
 
 #
-# RPM spec file (make rpm-pkg)
-#
-/*.spec
-
-#
 # Debian directory (make deb-pkg)
 #
 /debian/
-
-#
-# Snap directory (make snap-pkg)
-#
-/snap/
 
 #
 # tar directory (make tar*-pkg)
@@ -88,14 +68,12 @@ modules.builtin
 !.gitignore
 !.mailmap
 !.cocciconfig
-!.clang-format
 
 #
 # Generated include files
 #
 include/config
 include/generated
-include/ksym
 arch/*/include/generated
 
 # stgit generated dirs
@@ -140,11 +118,16 @@ all.config
 # fetched Android config fragments
 kernel/configs/android-*.cfg
 
-# vendor device tree directories
-#arch/arm64/boot/dts/vendor/
+#
+#Ignoring Android.bp link file
+#
+Android.bp
 
-# Tech package directories
-#techpack/
+/out
+/libufdt/
+/AnyKernel3
+/stock_32/
+/stock/
+/clang/
+*.zip
 
-# Build script & out
-out/

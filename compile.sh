@@ -141,7 +141,7 @@ cd ..
 # Sign the zip before sending it to Telegram
 KERNEL="Dragonfire"
 DEVICE="lime"
-VER="1.0"
+VER="2.0"
 KERNELNAME="${KERNEL}-${DEVICE}-${VER}"
 ZIPNAME="AnyKernel3/${KERNELNAME}.zip"
 tg_post_build "$ZIPNAME" "$CHATID" "✅ Build took : $((SECONDS / 60)) minute(s) and $((SECONDS % 60)) second(s)"

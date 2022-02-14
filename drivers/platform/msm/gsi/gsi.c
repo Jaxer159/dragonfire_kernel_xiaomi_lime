@@ -628,6 +628,10 @@ static void gsi_process_evt_re(struct gsi_evt_ctx *ctx,
 	struct gsi_xfer_compl_evt *evt;
 	struct gsi_chan_ctx *ch_ctx;
 
+	/* RMB before reading event ring shared b/w IPA h/w & driver
+	 * ordering between IPA h/w store and CPU load
+	 */
+	dma_rmb();
 	evt = (struct gsi_xfer_compl_evt *)(ctx->ring.base_va +
 			ctx->ring.rp_local - ctx->ring.base);
 	gsi_process_chan(evt, notify, callback);
@@ -2598,7 +2602,7 @@ int gsi_write_channel_scratch3_reg(unsigned long chan_hdl,
 EXPORT_SYMBOL(gsi_write_channel_scratch3_reg);
 
 int gsi_write_channel_scratch2_reg(unsigned long chan_hdl,
-		union __packed gsi_wdi2_channel_scratch2_reg val)
+		union gsi_wdi2_channel_scratch2_reg val)
 {
 	struct gsi_chan_ctx *ctx;
 
@@ -2630,7 +2634,7 @@ int gsi_write_channel_scratch2_reg(unsigned long chan_hdl,
 EXPORT_SYMBOL(gsi_write_channel_scratch2_reg);
 
 static void __gsi_read_channel_scratch(unsigned long chan_hdl,
-		union gsi_channel_scratch * val)
+		union gsi_channel_scratch *val)
 {
 	val->data.word1 = gsi_readl(gsi_ctx->base +
 		GSI_EE_n_GSI_CH_k_SCRATCH_0_OFFS(chan_hdl,

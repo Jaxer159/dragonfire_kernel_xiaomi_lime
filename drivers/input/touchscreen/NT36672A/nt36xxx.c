@@ -42,6 +42,10 @@
 #include <linux/jiffies.h>
 #endif /* #if NVT_TOUCH_ESD_PROTECT */
 
+#ifdef CONFIG_TOUCHSCREEN_COMMON
+#include <linux/input/tp_common.h>
+#endif
+
 #if NVT_TOUCH_ESD_PROTECT
 static struct delayed_work nvt_esd_check_work;
 static struct workqueue_struct *nvt_esd_check_wq;
@@ -90,6 +94,7 @@ static void nvt_ts_late_resume(struct early_suspend *h);
 #if WAKEUP_GESTURE
 static int32_t nvt_ts_get_regulator(bool get);
 static int32_t nvt_ts_enable_regulator(bool en);
+bool enable_gesture_mode = false;
 #endif
 
 extern int hq_regiser_hw_info(enum hardware_id id, char *device_name);
@@ -123,6 +128,33 @@ const uint16_t gesture_key_array[] = {
 	KEY_WAKEUP,  //GESTURE_SLIDE_RIGHT
 };
 #endif
+
+#if WAKEUP_GESTURE
+#ifdef CONFIG_TOUCHSCREEN_COMMON
+static ssize_t double_tap_show(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", enable_gesture_mode);
+}
+
+static ssize_t double_tap_store(struct kobject *kobj,
+		struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int rc, val;
+
+	rc = kstrtoint(buf, 10, &val);
+	if (rc)
+		return -EINVAL;
+	enable_gesture_mode = !!val;
+	return count;
+}
+
+static struct tp_common_ops double_tap_ops = {
+	.show = double_tap_show,
+	.store = double_tap_store
+};
+#endif
+#endif // WAKEUP_GESTURE
 
 #ifdef CONFIG_MTK_SPI
 const struct mt_chip_conf spi_ctrdata = {
@@ -1775,6 +1807,14 @@ static int32_t nvt_ts_probe(struct spi_device *client)
 		goto err_spi_setup;
 	}
 
+#if defined(CONFIG_TOUCHSCREEN_COMMON) && WAKEUP_GESTURE
+	ret = tp_common_set_double_tap_ops(&double_tap_ops);
+	if (ret < 0) {
+		NVT_ERR("%s: Failed to create double_tap node err=%d\n",
+				__func__, ret);
+	}
+#endif
+
 #ifdef CONFIG_MTK_SPI
     /* old usage of MTK spi API */
     memcpy(&ts->spi_ctrl, &spi_ctrdata, sizeof(struct mt_chip_conf));
@@ -2024,7 +2064,7 @@ static int32_t nvt_ts_probe(struct spi_device *client)
       	  	goto err_get_regulator;
     	}
 
-    	ret = nvt_ts_enable_regulator(false);//default disable regulator
+    	ret = nvt_ts_enable_regulator(true);
     	if (ret < 0) {
      	  	NVT_LOG("Failed to enable regulator");
        	 	goto err_enable_regulator;
@@ -2296,9 +2336,10 @@ static int32_t nvt_ts_suspend(struct device *dev)
 	}
 
 
-#if !WAKEUP_GESTURE
-	nvt_irq_enable(false);
+#if WAKEUP_GESTURE
+	if (!enable_gesture_mode)
 #endif
+		nvt_irq_enable(false);
 
 #if NVT_TOUCH_ESD_PROTECT
 	NVT_LOG("cancel delayed work sync\n");
@@ -2314,30 +2355,31 @@ static int32_t nvt_ts_suspend(struct device *dev)
 
 #if WAKEUP_GESTURE
 	//---write command to enter "wakeup gesture mode"---
-	if (nvt_gesture_flag == true) {
-    	    if (nvt_ts_enable_regulator(true) < 0) 
-     	  	NVT_LOG("Failed to enable regulator");
-	buf[0] = EVENT_MAP_HOST_CMD;
-	buf[1] = 0x13;
-	CTP_SPI_WRITE(ts->client, buf, 2);
+	if (enable_gesture_mode) {
+		if (nvt_gesture_flag == true) {
+			if (nvt_ts_enable_regulator(true) < 0)
+			    NVT_LOG("Failed to enable regulator");
+		}
+		buf[0] = EVENT_MAP_HOST_CMD;
+		buf[1] = 0x13;
+		CTP_SPI_WRITE(ts->client, buf, 2);
 
-	enable_irq_wake(ts->client->irq);
+		enable_irq_wake(ts->client->irq);
 
-	NVT_LOG("Enabled touch wakeup gesture\n");
+		NVT_LOG("Enabled touch wakeup gesture\n");
 	} else {
+#else // WAKEUP_GESTURE
+		//---write command to enter "deep sleep mode"---
 		buf[0] = EVENT_MAP_HOST_CMD;
 		buf[1] = 0x11;
 		CTP_SPI_WRITE(ts->client, buf, 2);
-	    	if (nvt_ts_enable_regulator(false) < 0) 
-	     	  	NVT_LOG("Failed to enable regulator");
-	}
-
-#else // WAKEUP_GESTURE
-	//---write command to enter "deep sleep mode"---
-	buf[0] = EVENT_MAP_HOST_CMD;
-	buf[1] = 0x11;
-	CTP_SPI_WRITE(ts->client, buf, 2);
+		if (nvt_ts_enable_regulator(false) < 0) {
+			NVT_LOG("Failed to enable regulator");
+		}
 #endif // WAKEUP_GESTURE
+#if WAKEUP_GESTURE
+	}
+#endif
 
 	mutex_unlock(&ts->lock);
 
@@ -2391,9 +2433,10 @@ static int32_t nvt_ts_resume(struct device *dev)
 		nvt_check_fw_reset_state(RESET_STATE_REK);
 	}
 
-#if !WAKEUP_GESTURE
-	nvt_irq_enable(true);
+#if WAKEUP_GESTURE
+	if (!enable_gesture_mode)
 #endif
+		nvt_irq_enable(true);
 
 #if NVT_TOUCH_ESD_PROTECT
 	nvt_esd_check_enable(false);

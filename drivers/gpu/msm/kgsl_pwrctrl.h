@@ -23,7 +23,7 @@
 #define KGSL_GPU_CFG_PATH_LOW	1
 #define KGSL_GPU_CFG_PATH_HIGH	2
 
-#define KGSL_MAX_CLKS 17
+#define KGSL_MAX_CLKS 18
 #define KGSL_MAX_REGULATORS 2
 
 #define KGSL_MAX_PWRLEVELS 10
@@ -51,9 +51,9 @@
 /*
  * The effective duration of qos request in usecs at queue time.
  * After timeout, qos request is cancelled automatically.
- * Kept 58ms default, inline with default GPU idle time.
+ * Kept 64ms default, inline with default GPU idle time.
  */
-#define KGSL_L2PC_QUEUE_TIMEOUT	(58 * 1000)
+#define KGSL_L2PC_QUEUE_TIMEOUT	(64 * 1000)
 
 /*
  * The effective duration of qos request in usecs at wakeup time.

@@ -153,6 +153,8 @@ struct console {
 	short	flags;
 	short	index;
 	int	cflag;
+	uint	ispeed;
+	uint	ospeed;
 	void	*data;
 	struct	 console *next;
 };
@@ -190,6 +192,7 @@ static inline void console_sysfs_notify(void)
 { }
 #endif
 extern bool console_suspend_enabled;
+extern int is_console_suspended(void);
 
 /* Suspend and resume console messages over PM events */
 extern void suspend_console(void);

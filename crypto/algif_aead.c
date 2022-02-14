@@ -81,7 +81,7 @@ static int crypto_aead_copy_sgl(struct crypto_sync_skcipher *null_tfm,
 {
 	SYNC_SKCIPHER_REQUEST_ON_STACK(skreq, null_tfm);
 
-	skcipher_request_set_tfm(skreq, null_tfm);
+	skcipher_request_set_sync_tfm(skreq, null_tfm);
 	skcipher_request_set_callback(skreq, CRYPTO_TFM_REQ_MAY_SLEEP,
 				      NULL, NULL);
 	skcipher_request_set_crypt(skreq, src, dst, len, NULL);

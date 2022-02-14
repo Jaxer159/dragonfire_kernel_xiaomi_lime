@@ -939,7 +939,10 @@ static int __ipa_finish_flt_rule_add(struct ipa3_flt_tbl *tbl,
 {
 	int id;
 
-	tbl->rule_cnt++;
+	if (tbl->rule_cnt < IPA_RULE_CNT_MAX)
+		tbl->rule_cnt++;
+	else
+		return -EINVAL;
 	if (entry->rt_tbl)
 		entry->rt_tbl->ref_cnt++;
 	id = ipa3_id_alloc(entry);
@@ -1175,7 +1178,7 @@ static void __ipa_convert_flt_rule_in(struct ipa_flt_rule rule_in,
 {
 	if (unlikely(sizeof(struct ipa_flt_rule) >
 			sizeof(struct ipa_flt_rule_i))) {
-		IPAERR_RL("invalid size in:%d size out:%d\n",
+		IPAERR_RL("invalid size in:%lu size out:%lu\n",
 			sizeof(struct ipa_flt_rule_i),
 			sizeof(struct ipa_flt_rule));
 		return;
@@ -1189,7 +1192,7 @@ static void __ipa_convert_flt_rule_out(struct ipa_flt_rule_i rule_in,
 {
 	if (unlikely(sizeof(struct ipa_flt_rule) >
 			sizeof(struct ipa_flt_rule_i))) {
-		IPAERR_RL("invalid size in:%d size out:%d\n",
+		IPAERR_RL("invalid size in:%lu size out:%lu\n",
 			sizeof(struct ipa_flt_rule_i),
 			sizeof(struct ipa_flt_rule));
 		return;
@@ -1203,7 +1206,7 @@ static void __ipa_convert_flt_mdfy_in(struct ipa_flt_rule_mdfy rule_in,
 {
 	if (unlikely(sizeof(struct ipa_flt_rule_mdfy) >
 			sizeof(struct ipa_flt_rule_mdfy_i))) {
-		IPAERR_RL("invalid size in:%d size out:%d\n",
+		IPAERR_RL("invalid size in:%lu size out:%lu\n",
 			sizeof(struct ipa_flt_rule_mdfy),
 			sizeof(struct ipa_flt_rule_mdfy_i));
 		return;
@@ -1220,7 +1223,7 @@ static void __ipa_convert_flt_mdfy_out(struct ipa_flt_rule_mdfy_i rule_in,
 {
 	if (unlikely(sizeof(struct ipa_flt_rule_mdfy) >
 			sizeof(struct ipa_flt_rule_mdfy_i))) {
-		IPAERR_RL("invalid size in:%d size out:%d\n",
+		IPAERR_RL("invalid size in:%lu size out:%lu\n",
 			sizeof(struct ipa_flt_rule_mdfy),
 			sizeof(struct ipa_flt_rule_mdfy_i));
 		return;

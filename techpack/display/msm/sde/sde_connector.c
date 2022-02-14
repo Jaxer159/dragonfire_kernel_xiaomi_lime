@@ -500,7 +500,7 @@ void sde_connector_schedule_status_work(struct drm_connector *connector,
 				c_conn->esd_status_interval :
 					STATUS_CHECK_INTERVAL_MS;
 			/* Schedule ESD status check */
-			schedule_delayed_work(&c_conn->status_work,
+			queue_delayed_work(system_power_efficient_wq, &c_conn->status_work,
 				msecs_to_jiffies(interval));
 			c_conn->esd_status_check = true;
 		} else {
@@ -2128,8 +2128,6 @@ static int sde_connector_atomic_check(struct drm_connector *connector,
 		struct drm_connector_state *new_conn_state)
 {
 	struct sde_connector *c_conn;
-	struct sde_connector_state *c_state;
-	bool qsync_dirty = false, has_modeset = false;
 
 	if (!connector) {
 		SDE_ERROR("invalid connector\n");
@@ -2142,19 +2140,6 @@ static int sde_connector_atomic_check(struct drm_connector *connector,
 	}
 
 	c_conn = to_sde_connector(connector);
-	c_state = to_sde_connector_state(new_conn_state);
-
-	has_modeset = sde_crtc_atomic_check_has_modeset(new_conn_state->state,
-						new_conn_state->crtc);
-	qsync_dirty = msm_property_is_dirty(&c_conn->property_info,
-					&c_state->property_state,
-					CONNECTOR_PROP_QSYNC_MODE);
-
-	SDE_DEBUG("has_modeset %d qsync_dirty %d\n", has_modeset, qsync_dirty);
-	if (has_modeset && qsync_dirty) {
-		SDE_ERROR("invalid qsync update during modeset\n");
-		return -EINVAL;
-	}
 
 	if (c_conn->ops.atomic_check)
 		return c_conn->ops.atomic_check(connector,
@@ -2266,7 +2251,7 @@ static void sde_connector_check_status_work(struct work_struct *work)
 		/* If debugfs property is not set then take default value */
 		interval = conn->esd_status_interval ?
 			conn->esd_status_interval : STATUS_CHECK_INTERVAL_MS;
-		schedule_delayed_work(&conn->status_work,
+		queue_delayed_work(system_power_efficient_wq, &conn->status_work,
 			msecs_to_jiffies(interval));
 		return;
 	}

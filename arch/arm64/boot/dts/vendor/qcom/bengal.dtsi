@@ -273,15 +273,16 @@
 				compatible = "android,fstab";
 				vendor {
 					compatible = "android,vendor";
-					dev = "/dev/block/platform/soc/4744000.sdhci/by-name/vendor";
+					dev = "/dev/block/platform/soc/4804000.ufshc/by-name/vendor";
 					type = "ext4";
 					mnt_flags = "ro,barrier=1,discard";
-					fsmgr_flags = [77 61 69 74 00 00 00 00 00];
+					fsmgr_flags = "wait";
 					status = "ok";
 				};
 			};
 		};
 	};
+	/delete-node/ android;
 
 	reserved_memory: reserved-memory {
 		#address-cells = <2>;
@@ -412,11 +413,6 @@
 			label = "cont_splash_region";
 		};
 
-		disp_rdump_memory: disp_rdump_region@5c000000 {
-			reg = <0x0 0x5c000000 0x0 0x00f00000>;
-			label = "disp_rdump_region";
-		};
-
 		dfps_data_memory: dfps_data_region@5cf00000 {
 			reg = <0x0 0x5cf00000 0x0 0x0100000>;
 			label = "dfps_data_region";
@@ -427,13 +423,6 @@
 			alloc-ranges = <0 0x00000000 0 0xffffffff>;
 			reusable;
 			alignment = <0 0x400000>;
-			size = <0 0x800000>;
-		};
-
-		dump_mem: mem_dump_region {
-			compatible = "shared-dma-pool";
-			alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
-			reusable;
 			size = <0 0x800000>;
 		};
 
@@ -449,7 +438,7 @@
 	};
 
 	chosen {
-		bootargs = "rcupdate.rcu_expedited=1 rcu_nocbs=0-7 kpti=off";
+		bootargs = "rcu_nocbs=0-7 noirqdebug quiet";
 	};
 
 	soc: soc { };
@@ -1156,7 +1145,7 @@
 
 	mem_dump {
 		compatible = "qcom,mem-dump";
-		memory-region = <&dump_mem>;
+		status = "disabled";
 
 		c0_context {
 			qcom,dump-size = <0x800>;
@@ -1719,6 +1708,29 @@
 		qcom,no-accumulative-counter;
 		qcom,max-lut-entries = <12>;
 		#freq-domain-cells = <2>;
+
+		qcom,cpufreq-table-0 =
+			< 300000>,
+			< 614400>,
+			< 864000>,
+			<1017600>,
+			<1305600>,
+			<1420800>,
+			<1612800>,
+			<1804800>,
+			<1804800>;
+
+		qcom,cpufreq-table-1 =
+			< 300000>,
+			< 652800>,
+			< 902400>,
+			<1056000>,
+			<1401600>,
+			<1536000>,
+			<1612800>,
+			<1804800>,
+			<2016000>,
+			<2016000>;
 	};
 
 	tcsr_mutex_block: syscon@00340000 {

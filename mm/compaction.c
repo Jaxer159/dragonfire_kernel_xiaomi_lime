@@ -1595,7 +1595,7 @@ typedef enum {
  * Allow userspace to control policy on scanning the unevictable LRU for
  * compactable pages.
  */
-int sysctl_compact_unevictable_allowed __read_mostly = 1;
+int sysctl_compact_unevictable_allowed __read_mostly = 0;
 
 static inline void
 update_fast_start_pfn(struct compact_control *cc, unsigned long pfn)
@@ -2456,7 +2456,6 @@ extern void zswap_compact(void);
 #else
 static inline void zswap_compact(void) {}
 #endif
-
 /* Compact all nodes in the system */
 static void compact_nodes(void)
 {
@@ -2467,6 +2466,8 @@ static void compact_nodes(void)
 
 	for_each_online_node(nid)
 		compact_node(nid);
+
+	zswap_compact();
 }
 
 /* The written value is actually unused, all memory is compacted */

@@ -27,6 +27,21 @@
 #define ATTACH_DETACH_MAX_INTERVAL ((unsigned long)310)
 #define DETACH_ATTACH_MAX_INTERVAL ((unsigned long)330)
 
+#if CONFIG_TOUCHSCREEN_COMMON
+typedef struct touchscreen_usb_piugin_data{
+	bool valid;
+	bool usb_plugged_in;
+	void (*event_callback)(void);
+} touchscreen_usb_piugin_data_t;
+
+touchscreen_usb_piugin_data_t g_touchscreen_usb_pulgin = {0};
+EXPORT_SYMBOL(g_touchscreen_usb_pulgin);
+#endif
+
+#ifdef CONFIG_FORCE_FAST_CHARGE
+#include <linux/fastchg.h>
+#endif
+
 #ifdef CONFIG_FORCE_FAST_CHARGE
 #include <linux/fastchg.h>
 #endif
@@ -1695,7 +1710,7 @@ static int smblib_awake_vote_callback(struct votable *votable, void *data,
 	struct smb_charger *chg = data;
 
 	if (awake)
-		pm_stay_awake(chg->dev);
+		pm_wakeup_event(chg->dev, 500);
 	else
 		pm_relax(chg->dev);
 

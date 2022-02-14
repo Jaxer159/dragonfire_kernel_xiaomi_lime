@@ -13,6 +13,8 @@
 #include <linux/delayacct.h>
 #include <linux/pid_namespace.h>
 #include <linux/cgroupstats.h>
+#include <linux/binfmts.h>
+#include <linux/devfreq_boost.h>
 
 #include <trace/events/cgroup.h>
 
@@ -538,6 +540,13 @@ static ssize_t __cgroup1_procs_write(struct kernfs_open_file *of,
 
 	ret = cgroup_attach_task(cgrp, task, threadgroup);
 
+	/* This covers boosting for app launches and app transitions */
+	if (!ret && !threadgroup &&
+		!memcmp(of->kn->parent->name, "top-app", sizeof("top-app")) &&
+		is_zygote_pid(task->parent->pid)) {
+		devfreq_boost_kick_max(DEVFREQ_MSM_CPUBW, 500);
+	}
+
 out_finish:
 	cgroup_procs_write_finish(task);
 out_unlock:
@@ -836,6 +845,10 @@ static int cgroup1_rename(struct kernfs_node *kn, struct kernfs_node *new_parent
 {
 	struct cgroup *cgrp = kn->priv;
 	int ret;
+
+	/* do not accept '\n' to prevent making /proc/<pid>/cgroup unparsable */
+	if (strchr(new_name_str, '\n'))
+		return -EINVAL;
 
 	if (kernfs_type(kn) != KERNFS_DIR)
 		return -ENOTDIR;

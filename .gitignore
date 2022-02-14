@@ -20,7 +20,6 @@
 *.mod.c
 *.lst
 *.symtypes
-*.order
 *.elf
 *.bin
 *.tar
@@ -130,4 +129,3 @@ Android.bp
 /stock/
 /clang/
 *.zip
-

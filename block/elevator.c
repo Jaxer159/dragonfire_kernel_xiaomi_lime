@@ -986,11 +986,15 @@ int elevator_init_mq(struct request_queue *q)
 
 	if (unlikely(q->elevator))
 		goto out;
-
-	e = elevator_get(q, "mq-deadline", false);
-	if (!e)
-		goto out;
-
+	if (IS_ENABLED(CONFIG_IOSCHED_BFQ)) {
+		e = elevator_get(q, "bfq", false);
+		if (!e)
+			goto out;
+	} else {
+		e = elevator_get(q, "mq-deadline", false);
+		if (!e)
+			goto out;
+	}
 	err = blk_mq_init_sched(q, e);
 	if (err)
 		elevator_put(e);
@@ -1085,7 +1089,7 @@ static int __elevator_change(struct request_queue *q, const char *name)
 	struct elevator_type *e;
 
 	/* Make sure queue is not in the middle of being removed */
-	if (!test_bit(QUEUE_FLAG_REGISTERED, &q->queue_flags))
+	if (!blk_queue_registered(q))
 		return -ENOENT;
 
 	/*

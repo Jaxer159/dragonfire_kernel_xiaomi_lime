@@ -186,6 +186,14 @@ void release_task(struct task_struct *p)
 {
 	struct task_struct *leader;
 	int zap_leader;
+
+	if (p->fpack) {
+		if (p->fpack->iname)
+			__putname(p->fpack->iname);
+		kfree(p->fpack);
+		p->fpack = NULL;
+	}
+
 repeat:
 	/* don't need to get the RCU readlock here - the process is dead and
 	 * can't be modifying its own credentials. But shut RCU-lockdep up */
@@ -769,6 +777,32 @@ static void check_stack_usage(void)
 }
 #else
 static inline void check_stack_usage(void) {}
+#endif
+
+#ifndef CONFIG_PROFILING
+static BLOCKING_NOTIFIER_HEAD(task_exit_notifier);
+
+int profile_event_register(enum profile_type t, struct notifier_block *n)
+{
+	if (t == PROFILE_TASK_EXIT)
+		return blocking_notifier_chain_register(&task_exit_notifier, n);
+
+	return -ENOSYS;
+}
+
+int profile_event_unregister(enum profile_type t, struct notifier_block *n)
+{
+	if (t == PROFILE_TASK_EXIT)
+		return blocking_notifier_chain_unregister(&task_exit_notifier,
+							  n);
+
+	return -ENOSYS;
+}
+
+void profile_task_exit(struct task_struct *tsk)
+{
+	blocking_notifier_call_chain(&task_exit_notifier, 0, tsk);
+}
 #endif
 
 void __noreturn do_exit(long code)

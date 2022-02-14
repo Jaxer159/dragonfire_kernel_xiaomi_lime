@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2021, The Linux Foundation. All rights reserved.
  * Copyright (C) 2013 Red Hat
  * Author: Rob Clark <robdclark@gmail.com>
  *
@@ -231,7 +231,6 @@ enum sde_enc_rc_states {
  * @recovery_events_enabled:	status of hw recovery feature enable by client
  * @elevated_ahb_vote:		increase AHB bus speed for the first frame
  *				after power collapse
- * @pm_qos_cpu_req:		pm_qos request for cpu frequency
  * @mode_info:                  stores the current mode and should be used
  *				 only in commit phase
  */
@@ -297,7 +296,6 @@ struct sde_encoder_virt {
 
 	bool recovery_events_enabled;
 	bool elevated_ahb_vote;
-	struct pm_qos_request pm_qos_cpu_req;
 	struct msm_mode_info mode_info;
 };
 
@@ -317,44 +315,6 @@ void sde_encoder_uidle_enable(struct drm_encoder *drm_enc, bool enable)
 			phys->hw_ctl->ops.uidle_enable(phys->hw_ctl, enable);
 		}
 	}
-}
-
-static void _sde_encoder_pm_qos_add_request(struct drm_encoder *drm_enc,
-	struct sde_kms *sde_kms)
-{
-	struct sde_encoder_virt *sde_enc = to_sde_encoder_virt(drm_enc);
-	struct pm_qos_request *req;
-	u32 cpu_mask;
-	u32 cpu_dma_latency;
-	int cpu;
-
-	if (!sde_kms->catalog || !sde_kms->catalog->perf.cpu_mask)
-		return;
-
-	cpu_mask = sde_kms->catalog->perf.cpu_mask;
-	cpu_dma_latency = sde_kms->catalog->perf.cpu_dma_latency;
-
-	req = &sde_enc->pm_qos_cpu_req;
-	req->type = PM_QOS_REQ_AFFINE_CORES;
-	cpumask_empty(&req->cpus_affine);
-	for_each_possible_cpu(cpu) {
-		if ((1 << cpu) & cpu_mask)
-			cpumask_set_cpu(cpu, &req->cpus_affine);
-	}
-	pm_qos_add_request(req, PM_QOS_CPU_DMA_LATENCY, cpu_dma_latency);
-
-	SDE_EVT32_VERBOSE(DRMID(drm_enc), cpu_mask, cpu_dma_latency);
-}
-
-static void _sde_encoder_pm_qos_remove_request(struct drm_encoder *drm_enc,
-	struct sde_kms *sde_kms)
-{
-	struct sde_encoder_virt *sde_enc = to_sde_encoder_virt(drm_enc);
-
-	if (!sde_kms->catalog || !sde_kms->catalog->perf.cpu_mask)
-		return;
-
-	pm_qos_remove_request(&sde_enc->pm_qos_cpu_req);
 }
 
 static bool _sde_encoder_is_autorefresh_enabled(
@@ -1113,6 +1073,7 @@ static int sde_encoder_virt_atomic_check(
 	struct sde_crtc_state *sde_crtc_state = NULL;
 	enum sde_rm_topology_name old_top;
 	int ret = 0;
+	bool qsync_dirty = false, has_modeset = false;
 
 	if (!drm_enc || !crtc_state || !conn_state) {
 		SDE_ERROR("invalid arg(s), drm_enc %d, crtc/conn state %d/%d\n",
@@ -1167,6 +1128,22 @@ static int sde_encoder_virt_atomic_check(
 	}
 
 	drm_mode_set_crtcinfo(adj_mode, 0);
+
+	has_modeset = sde_crtc_atomic_check_has_modeset(conn_state->state,
+				conn_state->crtc);
+	qsync_dirty = msm_property_is_dirty(&sde_conn->property_info,
+				&sde_conn_state->property_state,
+				CONNECTOR_PROP_QSYNC_MODE);
+
+	if (has_modeset && qsync_dirty &&
+		(msm_is_mode_seamless_poms(adj_mode) ||
+		msm_is_mode_seamless_dms(adj_mode) ||
+		msm_is_mode_seamless_dyn_clk(adj_mode))) {
+		SDE_ERROR("invalid qsync update during modeset priv flag:%x\n",
+			adj_mode->private_flags);
+		return -EINVAL;
+	}
+
 	SDE_EVT32(DRMID(drm_enc), adj_mode->flags, adj_mode->private_flags);
 
 	return ret;
@@ -2243,13 +2220,7 @@ static int _sde_encoder_resource_control_helper(struct drm_encoder *drm_enc,
 		/* enable all the irq */
 		_sde_encoder_irq_control(drm_enc, true);
 
-		if (is_cmd_mode)
-			_sde_encoder_pm_qos_add_request(drm_enc, sde_kms);
-
 	} else {
-		if (is_cmd_mode)
-			_sde_encoder_pm_qos_remove_request(drm_enc, sde_kms);
-
 		/* disable all the irq */
 		_sde_encoder_irq_control(drm_enc, false);
 
@@ -3865,10 +3836,12 @@ static void sde_encoder_frame_done_callback(
 
 static void sde_encoder_get_qsync_fps_callback(
 	struct drm_encoder *drm_enc,
-	u32 *qsync_fps)
+	u32 *qsync_fps, u32 vrr_fps)
 {
 	struct msm_display_info *disp_info;
 	struct sde_encoder_virt *sde_enc;
+	int rc = 0;
+	struct sde_connector *sde_conn;
 
 	if (!qsync_fps)
 		return;
@@ -3882,6 +3855,31 @@ static void sde_encoder_get_qsync_fps_callback(
 	sde_enc = to_sde_encoder_virt(drm_enc);
 	disp_info = &sde_enc->disp_info;
 	*qsync_fps = disp_info->qsync_min_fps;
+
+	/**
+	 * If "dsi-supported-qsync-min-fps-list" is defined, get
+	 * the qsync min fps corresponding to the fps in dfps list
+	 */
+	if (disp_info->has_qsync_min_fps_list) {
+
+		if (!sde_enc->cur_master ||
+			!(sde_enc->disp_info.capabilities &
+				MSM_DISPLAY_CAP_VID_MODE)) {
+			SDE_ERROR("invalid qsync settings %b\n",
+				!sde_enc->cur_master);
+			return;
+		}
+		sde_conn = to_sde_connector(sde_enc->cur_master->connector);
+
+		if (sde_conn->ops.get_qsync_min_fps)
+			rc = sde_conn->ops.get_qsync_min_fps(sde_conn->display,
+				vrr_fps);
+		if (rc <= 0) {
+			SDE_ERROR("invalid qsync min fps %d\n", rc);
+			return;
+		}
+		*qsync_fps = rc;
+	}
 }
 
 int sde_encoder_idle_request(struct drm_encoder *drm_enc)

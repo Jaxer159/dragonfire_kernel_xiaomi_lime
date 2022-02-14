@@ -776,7 +776,7 @@ struct devkmsg_user {
 
 static ssize_t devkmsg_write(struct kiocb *iocb, struct iov_iter *from)
 {
-	char *buf, *line;
+	char buf[LOG_LINE_MAX + 1], *line;
 	int level = default_message_loglevel;
 	int facility = 1;	/* LOG_USER */
 	struct file *file = iocb->ki_filp;
@@ -796,10 +796,6 @@ static ssize_t devkmsg_write(struct kiocb *iocb, struct iov_iter *from)
 		if (!___ratelimit(&user->rs, current->comm))
 			return ret;
 	}
-
-	buf = kmalloc(len+1, GFP_KERNEL);
-	if (buf == NULL)
-		return -ENOMEM;
 
 	buf[len] = '\0';
 	if (!copy_from_iter_full(buf, len, from)) {
@@ -833,7 +829,6 @@ static ssize_t devkmsg_write(struct kiocb *iocb, struct iov_iter *from)
 	}
 
 	printk_emit(facility, level, NULL, 0, "%s", line);
-	kfree(buf);
 	return ret;
 }
 
@@ -1332,13 +1327,9 @@ static size_t msg_print_text(const struct printk_log *msg, bool syslog, char *bu
 
 static int syslog_print(char __user *buf, int size)
 {
-	char *text;
+	char text[LOG_LINE_MAX + PREFIX_MAX];
 	struct printk_log *msg;
 	int len = 0;
-
-	text = kmalloc(LOG_LINE_MAX + PREFIX_MAX, GFP_KERNEL);
-	if (!text)
-		return -ENOMEM;
 
 	while (size > 0) {
 		size_t n;
@@ -1387,7 +1378,6 @@ static int syslog_print(char __user *buf, int size)
 		buf += n;
 	}
 
-	kfree(text);
 	return len;
 }
 
@@ -2150,8 +2140,15 @@ static int __init console_setup(char *str)
 	char *s, *options, *brl_options = NULL;
 	int idx;
 
-	if (str[0] == 0)
+	/*
+	 * console="" or console=null have been suggested as a way to
+	 * disable console output. Use ttynull that has been created
+	 * for exacly this purpose.
+	 */
+	if (str[0] == 0 || strcmp(str, "null") == 0) {
+		__add_preferred_console("ttynull", 0, NULL, NULL);
 		return 1;
+	}
 
 	if (_braille_console_setup(&str, &brl_options))
 		return 1;
@@ -2219,6 +2216,11 @@ module_param_named(console_suspend, console_suspend_enabled,
 MODULE_PARM_DESC(console_suspend, "suspend console during suspend"
 	" and hibernate operations");
 
+int is_console_suspended(void)
+{
+	return console_suspended;
+}
+
 /**
  * suspend_console - suspend the console subsystem
  *
@@ -2228,7 +2230,7 @@ void suspend_console(void)
 {
 	if (!console_suspend_enabled)
 		return;
-	pr_info("Suspending console(s) (use no_console_suspend to debug)\n");
+
 	console_lock();
 	console_suspended = 1;
 	up_console_sem();

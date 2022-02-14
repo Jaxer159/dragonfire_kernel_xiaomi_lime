@@ -835,8 +835,8 @@ static int ipa3_rx_switch_to_intr_mode(struct ipa3_sys_context *sys)
 			atomic_set(&sys->curr_polling_state, 1);
 			__ipa3_update_curr_poll_state(sys->ep->client, 1);
 		} else {
-			IPAERR("Failed to switch to intr mode %d ch_id %d\n",
-			 sys->curr_polling_state, sys->ep->gsi_chan_hdl);
+			IPAERR("Failed to switch to intr mode %d ch_id %lu\n",
+			 atomic_read(&sys->curr_polling_state), sys->ep->gsi_chan_hdl);
 		}
 	}
 
@@ -2656,7 +2656,7 @@ static void ipa3_cleanup_rx(struct ipa3_sys_context *sys)
 		tail = atomic_read(&sys->repl->tail_idx);
 		while (head != tail) {
 			rx_pkt = sys->repl->cache[head];
-			if (!ipa3_ctx->ipa_wan_skb_page) {
+			if (sys->repl_hdlr != ipa3_replenish_rx_page_recycle) {
 				dma_unmap_single(ipa3_ctx->pdev,
 					rx_pkt->data.dma_addr,
 					sys->rx_buff_sz,
@@ -3476,17 +3476,21 @@ static struct sk_buff *handle_page_completion(struct gsi_chan_xfer_notify
 		sys->ep->client == IPA_CLIENT_APPS_LAN_CONS) {
 		rx_skb = alloc_skb(0, GFP_ATOMIC);
 		if (unlikely(!rx_skb)) {
-			IPAERR("skb alloc failure\n");
-			list_del(&rx_pkt->link);
-			if (!rx_page.is_tmp_alloc) {
-				init_page_count(rx_page.page);
-			} else {
-				dma_unmap_page(ipa3_ctx->pdev, rx_page.dma_addr,
-					rx_pkt->len, DMA_FROM_DEVICE);
-				__free_pages(rx_pkt->page_data.page,
+			IPAERR("skb alloc failure, free all pending pages\n");
+			list_for_each_entry_safe(rx_pkt, tmp, head, link) {
+				rx_page = rx_pkt->page_data;
+				list_del_init(&rx_pkt->link);
+				if (!rx_page.is_tmp_alloc) {
+					init_page_count(rx_page.page);
+				} else {
+					dma_unmap_page(ipa3_ctx->pdev,
+						rx_page.dma_addr,
+						rx_pkt->len, DMA_FROM_DEVICE);
+					__free_pages(rx_pkt->page_data.page,
 							IPA_WAN_PAGE_ORDER);
+				}
+				rx_pkt->sys->free_rx_wrapper(rx_pkt);
 			}
-			rx_pkt->sys->free_rx_wrapper(rx_pkt);
 			IPA_STATS_INC_CNT(ipa3_ctx->stats.rx_page_drop_cnt);
 			return NULL;
 		}
@@ -4697,7 +4701,7 @@ static int ipa_gsi_setup_transfer_ring(struct ipa3_ep_context *ep,
 	u32 ring_size, struct ipa3_sys_context *user_data, gfp_t mem_flag)
 {
 	dma_addr_t dma_addr;
-	union __packed gsi_channel_scratch ch_scratch;
+	union gsi_channel_scratch ch_scratch;
 	struct gsi_chan_props gsi_channel_props;
 	const struct ipa_gsi_ep_config *gsi_ep_info;
 	int result;
